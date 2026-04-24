@@ -25,7 +25,7 @@ class PendingMetric
 
     public function label(string|BackedEnum $name, string|BackedEnum $value): static
     {
-        $name  = $this->normalize($name);
+        $name = $this->normalize($name);
         $value = $this->normalize($value);
 
         $this->validateString($name);
@@ -53,7 +53,8 @@ class PendingMetric
 
     /**
      * @template T of PendingMetric
-     * @param class-string<T> $class
+     *
+     * @param  class-string<T>  $class
      * @return T
      */
     protected function as(string $class): PendingMetric
@@ -66,7 +67,7 @@ class PendingMetric
 
     protected function getKey(): string
     {
-        $key = Metrics::prefix() . $this->name;
+        $key = Metrics::prefix().$this->name;
         if (empty($this->labels)) {
             return $key;
         }
@@ -76,7 +77,7 @@ class PendingMetric
 
         $result = array_map(fn ($k, $v) => "$k=$v", array_keys($labels), array_values($labels));
 
-        return $key . ";" . implode(";", $result);
+        return $key.';'.implode(';', $result);
     }
 
     protected function store(): Store
@@ -87,7 +88,7 @@ class PendingMetric
     protected function registerType(Type $type): void
     {
         $this->store()->set(
-            Metrics::prefix() . '__types|' . $this->name,
+            Metrics::prefix().'__types|'.$this->name,
             $type->value,
         );
     }
@@ -100,7 +101,7 @@ class PendingMetric
     protected function validateString(string $string): void
     {
         if (strpbrk($string, self::RESERVED) !== false) {
-            throw new \InvalidArgumentException('Value ' . $string . ' contains reserved characters: ' . self::RESERVED);
+            throw new \InvalidArgumentException('Value '.$string.' contains reserved characters: '.self::RESERVED);
         }
     }
 }

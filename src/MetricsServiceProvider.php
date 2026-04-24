@@ -36,7 +36,7 @@ class MetricsServiceProvider extends PackageServiceProvider
 
         if ($store === SwooleTableStore::class) {
             $this->app->singleton(Store::class, fn () => new SwooleTableStore(
-                size:       (int) config('metrics.swoole.size', 4096),
+                size: (int) config('metrics.swoole.size', 4096),
                 stringSize: (int) config('metrics.swoole.string_size', 64),
             ));
 

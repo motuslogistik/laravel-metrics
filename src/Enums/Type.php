@@ -2,7 +2,7 @@
 
 namespace motuslogistik\Metrics\Enums;
 
-enum Type : string
+enum Type: string
 {
     case Gauge = 'gauge';
     case Histogram = 'histogram';

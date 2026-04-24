@@ -9,7 +9,7 @@ beforeEach(function () {
 
     apcu_clear_cache();
 
-    $this->store = new APCStore();
+    $this->store = new APCStore;
 });
 
 it('returns false for missing keys', function () {

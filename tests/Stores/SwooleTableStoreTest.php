@@ -1,9 +1,10 @@
 <?php
 
 use motuslogistik\Metrics\Stores\SwooleTableStore;
+use Swoole\Table;
 
 beforeEach(function () {
-    if (! extension_loaded('swoole') || ! class_exists(\Swoole\Table::class)) {
+    if (! extension_loaded('swoole') || ! class_exists(Table::class)) {
         $this->markTestSkipped('swoole extension is not available');
     }
 

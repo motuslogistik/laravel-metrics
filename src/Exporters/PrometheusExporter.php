@@ -11,8 +11,8 @@ class PrometheusExporter
 
     public function render(): string
     {
-        $prefix     = Metrics::prefix();
-        $typePrefix = $prefix . '__types|';
+        $prefix = Metrics::prefix();
+        $typePrefix = $prefix.'__types|';
 
         [$types, $series] = $this->collect($prefix, $typePrefix);
 
@@ -38,13 +38,14 @@ class PrometheusExporter
      */
     private function collect(string $prefix, string $typePrefix): array
     {
-        $types  = [];
+        $types = [];
         $series = [];
 
         foreach ($this->store->iterator($prefix) as $key => $value) {
             if (str_starts_with($key, $typePrefix)) {
                 $metricName = substr($key, strlen($typePrefix));
                 $types[$metricName] = (string) $value;
+
                 continue;
             }
 
@@ -63,9 +64,9 @@ class PrometheusExporter
     {
         $tail = substr($key, strlen($prefix));       // "orders_created;status=paid"
 
-        $parts      = explode(';', $tail);
+        $parts = explode(';', $tail);
         $metricName = array_shift($parts);           // "orders_created"
-        $labels     = [];
+        $labels = [];
 
         foreach ($parts as $kv) {
             [$k, $v] = explode('=', $kv, 2);
@@ -76,7 +77,7 @@ class PrometheusExporter
     }
 
     /**
-     * @param array<string, string> $labels
+     * @param  array<string, string>  $labels
      */
     private function formatLine(string $metricName, array $labels, mixed $value): string
     {
@@ -84,19 +85,19 @@ class PrometheusExporter
         if ($labels !== []) {
             $pairs = [];
             foreach ($labels as $k => $v) {
-                $pairs[] = $k . '="' . $this->escapeLabelValue($v) . '"';
+                $pairs[] = $k.'="'.$this->escapeLabelValue($v).'"';
             }
-            $renderedLabels = '{' . implode(',', $pairs) . '}';
+            $renderedLabels = '{'.implode(',', $pairs).'}';
         }
 
-        return $metricName . $renderedLabels . ' ' . $value . "\n";
+        return $metricName.$renderedLabels.' '.$value."\n";
     }
 
     private function escapeLabelValue(string $value): string
     {
         return strtr($value, [
             '\\' => '\\\\',
-            '"'  => '\\"',
+            '"' => '\\"',
             "\n" => '\\n',
         ]);
     }

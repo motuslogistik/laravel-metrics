@@ -79,9 +79,9 @@ it('produces the same key regardless of label insertion order', function () {
 it('rejects reserved characters in the name', function (string $name) {
     new PendingMetric($name);
 })->with([
-    'pipe'      => ['crea|ted'],
+    'pipe' => ['crea|ted'],
     'semicolon' => ['crea;ted'],
-    'equals'    => ['crea=ted'],
+    'equals' => ['crea=ted'],
 ])->throws(InvalidArgumentException::class);
 
 it('accepts colons in the name', function () {
@@ -93,17 +93,17 @@ it('accepts colons in the name', function () {
 it('rejects reserved characters in a label name', function (string $labelName) {
     (new PendingMetric('orders_created'))->label($labelName, 'paid');
 })->with([
-    'pipe'      => ['sta|tus'],
+    'pipe' => ['sta|tus'],
     'semicolon' => ['sta;tus'],
-    'equals'    => ['sta=tus'],
+    'equals' => ['sta=tus'],
 ])->throws(InvalidArgumentException::class);
 
 it('rejects reserved characters in a label value', function (string $labelValue) {
     (new PendingMetric('orders_created'))->label('status', $labelValue);
 })->with([
-    'pipe'      => ['pa|id'],
+    'pipe' => ['pa|id'],
     'semicolon' => ['pa;id'],
-    'equals'    => ['pa=id'],
+    'equals' => ['pa=id'],
 ])->throws(InvalidArgumentException::class);
 
 it('returns a Counter from counter() with labels carried over', function () {
