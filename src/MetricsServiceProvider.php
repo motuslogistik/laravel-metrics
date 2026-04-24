@@ -24,7 +24,7 @@ class MetricsServiceProvider extends PackageServiceProvider
             ->hasConfigFile();
     }
 
-    public function boot()
+    public function packageBooted(): void
     {
         $this->registerStore();
         $this->registerRoute();
