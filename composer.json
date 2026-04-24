@@ -1,24 +1,25 @@
 {
-    "name": ":vendor_slug/:package_slug",
-    "description": ":package_description",
+    "name": "motuslogistik/metrics",
+    "description": "Metrics for Motus",
     "keywords": [
-        ":vendor_name",
+        "motuslogistik",
         "laravel",
-        ":package_slug"
+        "metrics"
     ],
-    "homepage": "https://github.com/:vendor_slug/:package_slug",
+    "homepage": "https://github.com/motuslogistik/metrics",
     "license": "MIT",
     "authors": [
         {
-            "name": ":author_name",
-            "email": "author@domain.com",
+            "name": "Patrik Malmström",
+            "email": "pama@wappo.se",
             "role": "Developer"
         }
     ],
     "require": {
         "php": "^8.4",
         "spatie/laravel-package-tools": "^1.16",
-        "illuminate/contracts": "^11.0||^12.0||^13.0"
+        "illuminate/contracts": "^11.0||^12.0||^13.0",
+        "ext-apcu": "*"
     },
     "require-dev": {
         "laravel/pint": "^1.14",
@@ -30,19 +31,19 @@
         "pestphp/pest-plugin-laravel": "^4.0",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan-deprecation-rules": "^2.0",
-        "phpstan/phpstan-phpunit": "^2.0",
-        "spatie/laravel-ray": "^1.35"
+        "phpstan/phpstan-phpunit": "^2.0"
     },
     "autoload": {
         "psr-4": {
-            "VendorName\\Skeleton\\": "src/",
-            "VendorName\\Skeleton\\Database\\Factories\\": "database/factories/"
-        }
+            "motuslogistik\\Metrics\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {
-            "VendorName\\Skeleton\\Tests\\": "tests/",
-            "Workbench\\App\\": "workbench/app/"
+            "motuslogistik\\Metrics\\Tests\\": "tests/"
         }
     },
     "scripts": {
@@ -63,11 +64,8 @@
     "extra": {
         "laravel": {
             "providers": [
-                "VendorName\\Skeleton\\SkeletonServiceProvider"
-            ],
-            "aliases": {
-                "Skeleton": "VendorName\\Skeleton\\Facades\\Skeleton"
-            }
+                "motuslogistik\\Metrics\\MetricsServiceProvider"
+            ]
         }
     },
     "minimum-stability": "dev",

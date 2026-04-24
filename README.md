@@ -1,69 +1,136 @@
-# :package_description
+# Metrics for Motus
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/:vendor_slug/:package_slug.svg?style=flat-square)](https://packagist.org/packages/:vendor_slug/:package_slug)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/:vendor_slug/:package_slug/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/:vendor_slug/:package_slug/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![GitHub Code Style Action Status](https://img.shields.io/github/actions/workflow/status/:vendor_slug/:package_slug/fix-php-code-style-issues.yml?branch=main&label=code%20style&style=flat-square)](https://github.com/:vendor_slug/:package_slug/actions?query=workflow%3A"Fix+PHP+code+style+issues"+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/:vendor_slug/:package_slug.svg?style=flat-square)](https://packagist.org/packages/:vendor_slug/:package_slug)
-<!--delete-->
----
-This repo can be used to scaffold a Laravel package. Follow these steps to get started:
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/motuslogistik/metrics.svg?style=flat-square)](https://packagist.org/packages/motuslogistik/metrics)
+[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/motuslogistik/metrics/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/motuslogistik/metrics/actions?query=workflow%3Arun-tests+branch%3Amain)
+[![Total Downloads](https://img.shields.io/packagist/dt/motuslogistik/metrics.svg?style=flat-square)](https://packagist.org/packages/motuslogistik/metrics)
 
-1. Press the "Use this template" button at the top of this repo to create a new repo with the contents of this skeleton.
-2. Run "php ./configure.php" to run a script that will replace all placeholders throughout all the files.
-3. Have fun creating your package.
-4. If you need help creating a package, consider picking up our <a href="https://laravelpackage.training">Laravel Package Training</a> video course.
----
-<!--/delete-->
-This is where your description should go. Limit it to a paragraph or two. Consider adding a small example.
-
-## Support us
-
-[<img src="https://github-ads.s3.eu-central-1.amazonaws.com/:package_name.jpg?t=1" width="419px" />](https://spatie.be/github-ad-click/:package_name)
-
-We invest a lot of resources into creating [best in class open source packages](https://spatie.be/open-source). You can support us by [buying one of our paid products](https://spatie.be/open-source/support-us).
-
-We highly appreciate you sending us a postcard from your hometown, mentioning which of our package(s) you are using. You'll find our address on [our contact page](https://spatie.be/about-us). We publish all received postcards on [our virtual postcard wall](https://spatie.be/open-source/postcards).
+Lightweight application metrics for Laravel. Counters, gauges and histograms written to a pluggable store (APCu or in-memory), with Prometheus/Grafana-compatible type metadata.
 
 ## Installation
 
-You can install the package via composer:
-
 ```bash
-composer require :vendor_slug/:package_slug
+composer require motuslogistik/metrics
 ```
 
-You can publish and run the migrations with:
+Publish the config:
 
 ```bash
-php artisan vendor:publish --tag=":package_slug-migrations"
-php artisan migrate
+php artisan vendor:publish --tag="metrics-config"
 ```
-
-You can publish the config file with:
-
-```bash
-php artisan vendor:publish --tag=":package_slug-config"
-```
-
-This is the contents of the published config file:
 
 ```php
+// config/metrics.php
 return [
+    'store'  => \motuslogistik\Metrics\Stores\ArrayStore::class,
+    'prefix' => 'metrics|',
 ];
 ```
 
-Optionally, you can publish the views using
+### Stores
 
-```bash
-php artisan vendor:publish --tag=":package_slug-views"
-```
+- `ArrayStore` — in-memory, per-request. Default. Good for tests.
+- `APCStore` — shared memory via the `apcu` extension. Use in classic FPM.
+  - Requires `ext-apcu` and `apc.enable_cli=1` if you run metrics from CLI.
+- `SwooleTableStore` — shared memory across Octane workers via Swoole Tables. Use with Laravel Octane / Swoole.
+  - Requires `ext-swoole`. Size is fixed at boot via `metrics.swoole.size`.
+
+Swap stores by setting `'store'` in the config file.
 
 ## Usage
 
+Three metric types, three helpers:
+
 ```php
-$:variable = new VendorName\Skeleton();
-echo $:variable->echoPhrase('Hello, VendorName!');
+counter('orders_created', ['status' => 'paid'])->record();
+
+gauge('cpu_usage', ['host' => 'web1'])->record(0.83);
+
+histogram('http_latency', ['path' => '/home'])->record(123);
 ```
+
+The label array is a shortcut; `->label()` still works for dynamic labels or longer chains:
+
+```php
+counter('orders_created')
+    ->label('status', $order->status)
+    ->label('channel', $channel)
+    ->record();
+```
+
+### Builder style
+
+`metric()` returns an untyped `PendingMetric`. It has no `record()` — pick a type first:
+
+```php
+metric('orders_created')
+    ->label('status', 'paid')
+    ->counter()
+    ->record();
+```
+
+Labels accumulated on `metric()` carry over when you call `->counter()`, `->gauge()`, or `->histogram()`.
+
+### Timing closures
+
+```php
+histogram('http_render')
+    ->label('path', '/home')
+    ->observe(fn () => renderHomepage());
+```
+
+`observe()` times the closure, records the duration (ms), and returns the closure's result.
+
+### Backed enums
+
+Everywhere a string is accepted (name, label name, label value), a `BackedEnum` works too:
+
+```php
+enum Status: string { case Paid = 'paid'; }
+
+counter('orders_created')
+    ->label('status', Status::Paid)
+    ->record();
+```
+
+Int-backed enums are coerced to string (`Status::One = 1` → `"1"`).
+
+### Reserved characters
+
+`|`, `;`, and `=` are key delimiters and may not appear in any input. Passing them throws `InvalidArgumentException`. Colons (`:`) are allowed — Prometheus treats them as valid in metric names (used for recording rules).
+
+## Scrape endpoint
+
+A Prometheus-format scrape endpoint is registered automatically at `/metrics`:
+
+```
+# TYPE orders_created counter
+orders_created{status="paid"} 3
+
+# TYPE cpu_usage gauge
+cpu_usage{host="web1"} 0.83
+```
+
+Configure via `metrics.route`:
+
+```php
+'route' => [
+    'enabled'    => true,
+    'path'       => '/metrics',
+    'middleware' => ['auth:api'], // e.g. protect behind a middleware
+],
+```
+
+Set `'enabled' => false` to opt out and register your own route pointing at `MetricsController::class`.
+
+## Key format
+
+```
+<prefix><name>;<label>=<value>;<label>=<value>
+```
+
+Labels are sorted alphabetically so label ordering at the call site never affects the key. Default prefix is `metrics|`, configurable via `metrics.prefix` — change it if you share an APCu pool with other apps.
+
+Each metric also writes a type hint at `<prefix>__types|<name>` (`counter` / `gauge` / `histogram`). This is for exporters to emit correct `# TYPE` lines — internally, nothing branches on it.
 
 ## Testing
 
@@ -71,21 +138,21 @@ echo $:variable->echoPhrase('Hello, VendorName!');
 composer test
 ```
 
+APCu tests run only when APCu is enabled for CLI:
+
+```bash
+php -d apc.enable_cli=1 vendor/bin/pest
+```
+
+Without the flag, they self-skip.
+
 ## Changelog
 
 Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed recently.
 
-## Contributing
-
-Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
-
-## Security Vulnerabilities
-
-Please review [our security policy](../../security/policy) on how to report security vulnerabilities.
-
 ## Credits
 
-- [:author_name](https://github.com/:author_username)
+- [Patrik Malmström](https://github.com/popsork)
 - [All Contributors](../../contributors)
 
 ## License
