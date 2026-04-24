@@ -16,7 +16,8 @@ class Histogram extends PendingMetric
 
     /**
      * @template TReturn
-     * @param Closure(): TReturn $fn
+     *
+     * @param  Closure(): TReturn  $fn
      * @return TReturn
      */
     public function observe(Closure $fn): mixed

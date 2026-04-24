@@ -8,7 +8,6 @@ use motuslogistik\Metrics\Contracts\Store;
 
 class APCStore implements Store
 {
-
     public function incr(string $key)
     {
         apcu_inc($key);
@@ -41,7 +40,7 @@ class APCStore implements Store
 
     public function iterator(?string $prefix = null): Generator
     {
-        foreach (new APCUIterator('/^' . $prefix . '/') as $curr) {
+        foreach (new APCUIterator('/^'.$prefix.'/') as $curr) {
             yield $curr['key'] => $curr['value'];
         }
     }

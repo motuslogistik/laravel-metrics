@@ -11,7 +11,7 @@ class ArrayStore implements Store
 
     public function incr(string $key)
     {
-        if (!array_key_exists($key, $this->data)) {
+        if (! array_key_exists($key, $this->data)) {
             $this->data[$key] = 1;
         } else {
             $this->data[$key] += 1;
@@ -20,7 +20,7 @@ class ArrayStore implements Store
 
     public function decr(string $key)
     {
-        if (!array_key_exists($key, $this->data)) {
+        if (! array_key_exists($key, $this->data)) {
             $this->data[$key] = 0;
         } else {
             $this->data[$key] -= 1;

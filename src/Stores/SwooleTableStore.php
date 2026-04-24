@@ -9,6 +9,7 @@ use Swoole\Table;
 class SwooleTableStore implements Store
 {
     private Table $values;
+
     private Table $strings;
 
     public function __construct(int $size = 4096, int $stringSize = 64)
@@ -49,6 +50,7 @@ class SwooleTableStore implements Store
     {
         if (is_numeric($value)) {
             $this->values->set($key, ['v' => $value]);
+
             return;
         }
 
