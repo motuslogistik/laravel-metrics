@@ -1,10 +1,8 @@
 # Metrics for Motus
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/motuslogistik/metrics.svg?style=flat-square)](https://packagist.org/packages/motuslogistik/metrics)
-[![GitHub Tests Action Status](https://img.shields.io/github/actions/workflow/status/motuslogistik/metrics/run-tests.yml?branch=main&label=tests&style=flat-square)](https://github.com/motuslogistik/metrics/actions?query=workflow%3Arun-tests+branch%3Amain)
-[![Total Downloads](https://img.shields.io/packagist/dt/motuslogistik/metrics.svg?style=flat-square)](https://packagist.org/packages/motuslogistik/metrics)
+> **Internal package** — proprietary to Motus Logistik. Not licensed for external use. See [LICENSE.md](LICENSE.md).
 
-Lightweight application metrics for Laravel. Counters, gauges and histograms written to a pluggable store (APCu or in-memory), with Prometheus/Grafana-compatible type metadata.
+Lightweight application metrics for Laravel. Counters, gauges and histograms written to a pluggable store (APCu, in-memory, or Swoole Table), with Prometheus/Grafana-compatible type metadata.
 
 ## Installation
 
@@ -157,4 +155,4 @@ Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed re
 
 ## License
 
-The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
+Proprietary. Copyright © 2026 Motus Logistik. See [LICENSE.md](LICENSE.md).
