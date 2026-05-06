@@ -23,14 +23,14 @@ class SwooleTableStore implements Store
         $this->strings->create();
     }
 
-    public function incr(string $key)
+    public function incr(string $key, int|float $amount = 1)
     {
-        $this->values->incr($key, 'v');
+        $this->values->incr($key, 'v', $amount);
     }
 
-    public function decr(string $key)
+    public function decr(string $key, int|float $amount = 1)
     {
-        $this->values->decr($key, 'v');
+        $this->values->decr($key, 'v', $amount);
     }
 
     public function get(string $key)

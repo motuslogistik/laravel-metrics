@@ -4,9 +4,9 @@ namespace motuslogistik\Metrics\Contracts;
 
 interface Store
 {
-    public function incr(string $key);
+    public function incr(string $key, int|float $amount = 1);
 
-    public function decr(string $key);
+    public function decr(string $key, int|float $amount = 1);
 
     public function get(string $key);
 

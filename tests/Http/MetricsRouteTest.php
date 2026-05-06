@@ -1,7 +1,7 @@
 <?php
 
 it('exposes a /metrics route that renders the exporter output', function () {
-    counter('orders_created')->label('status', 'paid')->record();
+    counter('orders_created')->label('status', 'paid')->incr();
 
     $response = $this->get('/metrics');
 

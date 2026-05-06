@@ -9,21 +9,21 @@ class ArrayStore implements Store
 {
     private array $data = [];
 
-    public function incr(string $key)
+    public function incr(string $key, int|float $amount = 1)
     {
         if (! array_key_exists($key, $this->data)) {
-            $this->data[$key] = 1;
+            $this->data[$key] = $amount;
         } else {
-            $this->data[$key] += 1;
+            $this->data[$key] += $amount;
         }
     }
 
-    public function decr(string $key)
+    public function decr(string $key, int|float $amount = 1)
     {
         if (! array_key_exists($key, $this->data)) {
-            $this->data[$key] = 0;
+            $this->data[$key] = -$amount;
         } else {
-            $this->data[$key] -= 1;
+            $this->data[$key] -= $amount;
         }
     }
 

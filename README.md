@@ -39,12 +39,26 @@ Swap stores by setting `'store'` in the config file.
 Three metric types, three helpers:
 
 ```php
-counter('orders_created', ['status' => 'paid'])->record();
+counter('orders_created', ['status' => 'paid'])->incr();
 
 gauge('cpu_usage', ['host' => 'web1'])->record(0.83);
 
 histogram('http_latency', ['path' => '/home'])->record(123);
 ```
+
+Counters expose three operations:
+
+```php
+counter('orders_created')->incr();        // +1
+counter('queue_depth')->incr(5);          // +5
+counter('queue_depth')->decr();           // -1
+counter('queue_depth')->decr(3);          // -3
+counter('orders_total')->set(42);         // overwrite to 42
+```
+
+`incr()` / `decr()` adjust the stored value relatively. `set($value)` overwrites it — useful when the count is sampled from another source rather than tallied locally.
+
+`record()` (no args) is kept as an alias for `incr()` so existing callsites keep working.
 
 The label array is a shortcut; `->label()` still works for dynamic labels or longer chains:
 
@@ -52,7 +66,7 @@ The label array is a shortcut; `->label()` still works for dynamic labels or lon
 counter('orders_created')
     ->label('status', $order->status)
     ->label('channel', $channel)
-    ->record();
+    ->incr();
 ```
 
 ### Builder style
@@ -63,7 +77,7 @@ counter('orders_created')
 metric('orders_created')
     ->label('status', 'paid')
     ->counter()
-    ->record();
+    ->incr();
 ```
 
 Labels accumulated on `metric()` carry over when you call `->counter()`, `->gauge()`, or `->histogram()`.
@@ -87,7 +101,7 @@ enum Status: string { case Paid = 'paid'; }
 
 counter('orders_created')
     ->label('status', Status::Paid)
-    ->record();
+    ->incr();
 ```
 
 Int-backed enums are coerced to string (`Status::One = 1` → `"1"`).

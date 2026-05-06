@@ -8,14 +8,14 @@ use motuslogistik\Metrics\Contracts\Store;
 
 class APCStore implements Store
 {
-    public function incr(string $key)
+    public function incr(string $key, int|float $amount = 1)
     {
-        apcu_inc($key);
+        apcu_inc($key, (int) $amount);
     }
 
-    public function decr(string $key)
+    public function decr(string $key, int|float $amount = 1)
     {
-        apcu_dec($key);
+        apcu_dec($key, (int) $amount);
     }
 
     public function get(string $key)

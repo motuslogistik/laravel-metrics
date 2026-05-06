@@ -9,7 +9,7 @@ function exporterRender(): string
 }
 
 it('renders a counter with TYPE line and single series', function () {
-    counter('orders_created')->label('status', 'paid')->record();
+    counter('orders_created')->label('status', 'paid')->incr();
 
     expect(exporterRender())->toContain(
         "# TYPE orders_created counter\n",
@@ -27,9 +27,9 @@ it('renders a gauge with its set value', function () {
 });
 
 it('renders multiple series for the same metric', function () {
-    counter('orders_created')->label('status', 'paid')->record();
-    counter('orders_created')->label('status', 'paid')->record();
-    counter('orders_created')->label('status', 'failed')->record();
+    counter('orders_created')->label('status', 'paid')->incr();
+    counter('orders_created')->label('status', 'paid')->incr();
+    counter('orders_created')->label('status', 'failed')->incr();
 
     $out = exporterRender();
 
@@ -38,19 +38,19 @@ it('renders multiple series for the same metric', function () {
 });
 
 it('renders a metric with no labels', function () {
-    counter('system_boot')->record();
+    counter('system_boot')->incr();
 
     expect(exporterRender())->toContain("system_boot 1\n");
 });
 
 it('omits the __types sidecar keys from output', function () {
-    counter('orders_created')->record();
+    counter('orders_created')->incr();
 
     expect(exporterRender())->not->toContain('__types');
 });
 
 it('escapes quotes and backslashes in label values', function () {
-    counter('events_logged')->label('message', 'he said "hi"')->record();
+    counter('events_logged')->label('message', 'he said "hi"')->incr();
 
     expect(exporterRender())->toContain('events_logged{message="he said \\"hi\\""} 1');
 });
