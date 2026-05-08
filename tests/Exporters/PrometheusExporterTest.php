@@ -2,6 +2,8 @@
 
 use motuslogistik\Metrics\Contracts\Store;
 use motuslogistik\Metrics\Exporters\PrometheusExporter;
+use motuslogistik\Metrics\Metrics;
+use motuslogistik\Metrics\Stores\ArrayStore;
 
 function exporterRender(): string
 {
@@ -53,4 +55,40 @@ it('escapes quotes and backslashes in label values', function () {
     counter('events_logged')->label('message', 'he said "hi"')->incr();
 
     expect(exporterRender())->toContain('events_logged{message="he said \\"hi\\""} 1');
+});
+
+it('merges series and types from multiple stores', function () {
+    $local = new ArrayStore;
+    $global = new ArrayStore;
+
+    $this->app->instance(Store::class, $local);
+    $this->app->instance(Metrics::GLOBAL_STORE, $global);
+
+    counter('orders_created')->label('status', 'paid')->incr();
+    counter('users_total')->global()->incr();
+
+    $out = (new PrometheusExporter([$local, $global]))->render();
+
+    expect($out)
+        ->toContain('# TYPE orders_created counter')
+        ->and($out)->toContain('orders_created{status="paid"} 1')
+        ->and($out)->toContain('# TYPE users_total counter')
+        ->and($out)->toContain("users_total 1\n");
+});
+
+it('concatenates samples when the same metric exists in both stores', function () {
+    $local = new ArrayStore;
+    $global = new ArrayStore;
+
+    $this->app->instance(Store::class, $local);
+    $this->app->instance(Metrics::GLOBAL_STORE, $global);
+
+    counter('orders_created')->label('status', 'paid')->incr();
+    counter('orders_created')->label('status', 'failed')->global()->incr();
+
+    $out = (new PrometheusExporter([$local, $global]))->render();
+
+    expect(substr_count($out, '# TYPE orders_created counter'))->toBe(1)
+        ->and($out)->toContain('orders_created{status="paid"} 1')
+        ->and($out)->toContain('orders_created{status="failed"} 1');
 });

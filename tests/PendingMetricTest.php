@@ -1,9 +1,12 @@
 <?php
 
+use motuslogistik\Metrics\Contracts\Store;
+use motuslogistik\Metrics\Metrics;
 use motuslogistik\Metrics\Metrics\Counter;
 use motuslogistik\Metrics\Metrics\Gauge;
 use motuslogistik\Metrics\Metrics\Histogram;
 use motuslogistik\Metrics\PendingMetric;
+use motuslogistik\Metrics\Stores\ArrayStore;
 
 enum TestName: string
 {
@@ -145,6 +148,50 @@ it('accepts backed enums for label name and value', function () {
         ->label(TestLabelKey::Status, TestLabelValue::Paid);
 
     expect(invokeGetKey($metric))->toBe('metrics|orders_created;status=paid');
+});
+
+it('writes to the global store when ->global() is used', function () {
+    $local = new ArrayStore;
+    $global = new ArrayStore;
+
+    $this->app->instance(Store::class, $local);
+    $this->app->instance(Metrics::GLOBAL_STORE, $global);
+
+    counter('users_total')->global()->incr();
+
+    expect($local->has('metrics|users_total'))->toBeFalse()
+        ->and($global->get('metrics|users_total'))->toBe(1)
+        ->and($global->get('metrics|__types|users_total'))->toBe('counter');
+});
+
+it('writes to the local store by default', function () {
+    $local = new ArrayStore;
+    $global = new ArrayStore;
+
+    $this->app->instance(Store::class, $local);
+    $this->app->instance(Metrics::GLOBAL_STORE, $global);
+
+    counter('orders_created')->incr();
+
+    expect($global->has('metrics|orders_created'))->toBeFalse()
+        ->and($local->get('metrics|orders_created'))->toBe(1);
+});
+
+it('throws when ->global() is used without a configured global store', function () {
+    counter('users_total')->global()->incr();
+})->throws(RuntimeException::class, 'No global store configured');
+
+it('propagates the global flag through metric type conversions', function () {
+    $local = new ArrayStore;
+    $global = new ArrayStore;
+
+    $this->app->instance(Store::class, $local);
+    $this->app->instance(Metrics::GLOBAL_STORE, $global);
+
+    metric('users_total')->global()->counter()->incr();
+
+    expect($global->get('metrics|users_total'))->toBe(1)
+        ->and($local->has('metrics|users_total'))->toBeFalse();
 });
 
 it('coerces int-backed enum values to strings', function () {

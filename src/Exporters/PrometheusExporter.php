@@ -7,14 +7,32 @@ use motuslogistik\Metrics\Metrics;
 
 class PrometheusExporter
 {
-    public function __construct(private Store $store) {}
+    /** @var list<Store> */
+    private array $stores;
+
+    public function __construct(Store|array $stores)
+    {
+        $this->stores = $stores instanceof Store ? [$stores] : array_values($stores);
+    }
 
     public function render(): string
     {
         $prefix = Metrics::prefix();
         $typePrefix = $prefix.'__types|';
 
-        [$types, $series] = $this->collect($prefix, $typePrefix);
+        $types = [];
+        $series = [];
+
+        foreach ($this->stores as $store) {
+            [$storeTypes, $storeSeries] = $this->collect($store, $prefix, $typePrefix);
+
+            $types += $storeTypes;
+
+            foreach ($storeSeries as $metricName => $samples) {
+                $series[$metricName] ??= [];
+                array_push($series[$metricName], ...$samples);
+            }
+        }
 
         $output = '';
 
@@ -36,12 +54,12 @@ class PrometheusExporter
     /**
      * @return array{0: array<string, string>, 1: array<string, list<array{0: array<string, string>, 1: mixed}>>}
      */
-    private function collect(string $prefix, string $typePrefix): array
+    private function collect(Store $store, string $prefix, string $typePrefix): array
     {
         $types = [];
         $series = [];
 
-        foreach ($this->store->iterator($prefix) as $key => $value) {
+        foreach ($store->iterator($prefix) as $key => $value) {
             if (str_starts_with($key, $typePrefix)) {
                 $metricName = substr($key, strlen($typePrefix));
                 $types[$metricName] = (string) $value;

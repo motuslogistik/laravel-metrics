@@ -5,6 +5,7 @@ use motuslogistik\Metrics\Stores\ArrayStore;
 
 return [
     'store' => ArrayStore::class,
+    'global_store' => null,
     'prefix' => 'metrics|',
 
     'swoole' => [

@@ -17,6 +17,8 @@ class PendingMetric
 
     protected array $labels = [];
 
+    protected bool $global = false;
+
     public function __construct(string|BackedEnum $name)
     {
         $this->name = $this->normalize($name);
@@ -32,6 +34,13 @@ class PendingMetric
         $this->validateString($value);
 
         $this->labels[$name] = $value;
+
+        return $this;
+    }
+
+    public function global(bool $value = true): static
+    {
+        $this->global = $value;
 
         return $this;
     }
@@ -61,6 +70,7 @@ class PendingMetric
     {
         $metric = new $class($this->name);
         $metric->labels = $this->labels;
+        $metric->global = $this->global;
 
         return $metric;
     }
@@ -82,7 +92,19 @@ class PendingMetric
 
     protected function store(): Store
     {
-        return app(Store::class);
+        if ($this->global) {
+            $store = Metrics::globalStore();
+
+            if ($store === null) {
+                throw new \RuntimeException(
+                    'No global store configured. Set metrics.global_store to use ->global().'
+                );
+            }
+
+            return $store;
+        }
+
+        return Metrics::store();
     }
 
     protected function registerType(Type $type): void

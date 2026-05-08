@@ -36,6 +36,22 @@ return [
 
 Swap stores by setting `'store'` in the config file.
 
+### Global metrics
+
+Some metrics — counts of users, totals across all nodes — must live outside per-process memory. Configure a second store as `global_store` and route individual metrics to it with `->global()`:
+
+```php
+// config/metrics.php
+'store'        => APCStore::class,    // per-host
+'global_store' => RedisStore::class,  // shared across hosts
+
+// callsite
+counter('users_total')->global()->incr();
+gauge('queue_depth')->global()->record(42);
+```
+
+The `/metrics` endpoint scrapes both stores and merges the output. `->global()` throws if no `global_store` is configured.
+
 ## Usage
 
 Three metric types, three helpers:

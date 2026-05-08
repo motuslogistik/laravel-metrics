@@ -4,6 +4,7 @@ namespace motuslogistik\Metrics;
 
 use Illuminate\Support\Facades\Route;
 use motuslogistik\Metrics\Contracts\Store;
+use motuslogistik\Metrics\Exporters\PrometheusExporter;
 use motuslogistik\Metrics\Http\Controllers\MetricsController;
 use motuslogistik\Metrics\Stores\ArrayStore;
 use motuslogistik\Metrics\Stores\RedisStore;
@@ -27,16 +28,33 @@ class MetricsServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        $this->registerStore();
+        $this->registerStores();
+        $this->registerExporter();
         $this->registerRoute();
     }
 
-    private function registerStore(): void
+    private function registerExporter(): void
     {
-        $store = config('metrics.store') ?? ArrayStore::class;
+        $this->app->bind(
+            PrometheusExporter::class,
+            fn () => new PrometheusExporter(Metrics::stores()),
+        );
+    }
 
+    private function registerStores(): void
+    {
+        $this->bindStore(Store::class, config('metrics.store') ?? ArrayStore::class);
+
+        $globalStore = config('metrics.global_store');
+        if ($globalStore !== null) {
+            $this->bindStore(Metrics::GLOBAL_STORE, $globalStore);
+        }
+    }
+
+    private function bindStore(string $abstract, string $store): void
+    {
         if ($store === RedisStore::class) {
-            $this->app->singleton(Store::class, fn () => new RedisStore(
+            $this->app->singleton($abstract, fn () => new RedisStore(
                 connection: config('metrics.redis.connection'),
             ));
 
@@ -44,18 +62,17 @@ class MetricsServiceProvider extends PackageServiceProvider
         }
 
         if ($store === SwooleTableStore::class) {
-            $this->app->singleton(Store::class, fn () => new SwooleTableStore(
+            $this->app->singleton($abstract, fn () => new SwooleTableStore(
                 size: (int) config('metrics.swoole.size', 4096),
                 stringSize: (int) config('metrics.swoole.string_size', 64),
             ));
 
-            // Create the Swoole tables before Octane forks workers.
-            $this->app->make(Store::class);
+            $this->app->make($abstract);
 
             return;
         }
 
-        $this->app->singleton(Store::class, $store);
+        $this->app->singleton($abstract, $store);
     }
 
     private function registerRoute(): void
