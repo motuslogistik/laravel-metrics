@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 use motuslogistik\Metrics\Contracts\Store;
 use motuslogistik\Metrics\Http\Controllers\MetricsController;
 use motuslogistik\Metrics\Stores\ArrayStore;
+use motuslogistik\Metrics\Stores\RedisStore;
 use motuslogistik\Metrics\Stores\SwooleTableStore;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
@@ -33,6 +34,14 @@ class MetricsServiceProvider extends PackageServiceProvider
     private function registerStore(): void
     {
         $store = config('metrics.store') ?? ArrayStore::class;
+
+        if ($store === RedisStore::class) {
+            $this->app->singleton(Store::class, fn () => new RedisStore(
+                connection: config('metrics.redis.connection'),
+            ));
+
+            return;
+        }
 
         if ($store === SwooleTableStore::class) {
             $this->app->singleton(Store::class, fn () => new SwooleTableStore(

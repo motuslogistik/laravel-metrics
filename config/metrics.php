@@ -12,6 +12,10 @@ return [
         'string_size' => 64,
     ],
 
+    'redis' => [
+        'connection' => null,
+    ],
+
     'route' => [
         'enabled' => true,
         'path' => '/metrics',

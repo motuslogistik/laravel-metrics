@@ -31,6 +31,8 @@ return [
   - Requires `ext-apcu` and `apc.enable_cli=1` if you run metrics from CLI.
 - `SwooleTableStore` — shared memory across Octane workers via Swoole Tables. Use with Laravel Octane / Swoole.
   - Requires `ext-swoole`. Size is fixed at boot via `metrics.swoole.size`.
+- `RedisStore` — shared across processes/hosts via Redis. Use when scraping from a separate process or aggregating across nodes.
+  - Uses Laravel's Redis connection. Configure with `metrics.redis.connection` (defaults to the default connection).
 
 Swap stores by setting `'store'` in the config file.
 
