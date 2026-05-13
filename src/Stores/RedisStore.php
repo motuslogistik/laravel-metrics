@@ -63,34 +63,60 @@ class RedisStore implements Store
     public function iterator(?string $prefix = null): Generator
     {
         $pattern = $prefix === null ? '*' : $this->escapeGlob($prefix).'*';
-        $keys = $this->redis->keys($pattern);
-
-        if (empty($keys)) {
-            return;
-        }
-
-        // Redis::keys() returns keys with the connection prefix already included,
-        // but subsequent commands re-apply it. Strip it to avoid double-prefixing.
         $connectionPrefix = $this->getConnectionPrefix();
-        if ($connectionPrefix !== '') {
-            $keys = array_map(
-                fn ($key) => str_starts_with($key, $connectionPrefix)
-                    ? substr($key, strlen($connectionPrefix))
-                    : $key,
-                $keys
-            );
-        }
+        $seen = [];
+        $cursor = '0';
 
-        $values = $this->redis->mget($keys);
+        do {
+            $result = $this->redis->scan($cursor, ['match' => $pattern, 'count' => 1000]);
 
-        foreach ($keys as $i => $key) {
-            $value = $values[$i] ?? null;
-            if ($value === null || $value === false) {
+            if ($result === false) {
+                return;
+            }
+
+            [$cursor, $keys] = $result;
+
+            if (empty($keys)) {
                 continue;
             }
 
-            yield $key => $value;
-        }
+            // SCAN/KEYS return keys with the connection prefix already included,
+            // but subsequent commands re-apply it. Strip it to avoid double-prefixing.
+            if ($connectionPrefix !== '') {
+                $keys = array_map(
+                    fn ($key) => str_starts_with($key, $connectionPrefix)
+                        ? substr($key, strlen($connectionPrefix))
+                        : $key,
+                    $keys
+                );
+            }
+
+            // SCAN may return the same key twice during a rehash; dedupe so
+            // Prometheus doesn't see duplicate series and reject the scrape.
+            $keys = array_values(array_filter($keys, function ($key) use (&$seen) {
+                if (isset($seen[$key])) {
+                    return false;
+                }
+                $seen[$key] = true;
+
+                return true;
+            }));
+
+            if (empty($keys)) {
+                continue;
+            }
+
+            $values = $this->redis->mget($keys);
+
+            foreach ($keys as $i => $key) {
+                $value = $values[$i] ?? null;
+                if ($value === null || $value === false) {
+                    continue;
+                }
+
+                yield $key => $value;
+            }
+        } while ((int) $cursor !== 0);
     }
 
     private function getConnectionPrefix(): string
