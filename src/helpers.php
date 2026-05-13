@@ -42,4 +42,3 @@ if (! function_exists('gauge')) {
         return motuslogistik_metrics_apply_labels(new Gauge($name), $labels);
     }
 }
-
