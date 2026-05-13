@@ -4,7 +4,6 @@ use motuslogistik\Metrics\Contracts\Store;
 use motuslogistik\Metrics\Metrics;
 use motuslogistik\Metrics\Metrics\Counter;
 use motuslogistik\Metrics\Metrics\Gauge;
-use motuslogistik\Metrics\Metrics\Histogram;
 use motuslogistik\Metrics\PendingMetric;
 use motuslogistik\Metrics\Stores\ArrayStore;
 
@@ -125,15 +124,6 @@ it('returns a Gauge from gauge() with labels carried over', function () {
 
     expect($metric)->toBeInstanceOf(Gauge::class)
         ->and(invokeGetKey($metric))->toBe('metrics|cpu_usage;host=web1');
-});
-
-it('returns a Histogram from histogram() with labels carried over', function () {
-    $metric = (new PendingMetric('http_latency'))
-        ->label('path', 'home')
-        ->histogram();
-
-    expect($metric)->toBeInstanceOf(Histogram::class)
-        ->and(invokeGetKey($metric))->toBe('metrics|http_latency;path=home');
 });
 
 it('accepts a backed enum for the name', function () {

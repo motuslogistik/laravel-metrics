@@ -2,7 +2,6 @@
 
 use motuslogistik\Metrics\Metrics\Counter;
 use motuslogistik\Metrics\Metrics\Gauge;
-use motuslogistik\Metrics\Metrics\Histogram;
 use motuslogistik\Metrics\PendingMetric;
 
 if (! function_exists('motuslogistik_metrics_apply_labels')) {
@@ -44,9 +43,3 @@ if (! function_exists('gauge')) {
     }
 }
 
-if (! function_exists('histogram')) {
-    function histogram(string|BackedEnum $name, array $labels = []): Histogram
-    {
-        return motuslogistik_metrics_apply_labels(new Histogram($name), $labels);
-    }
-}

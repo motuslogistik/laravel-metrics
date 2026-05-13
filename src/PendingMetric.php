@@ -7,7 +7,6 @@ use motuslogistik\Metrics\Contracts\Store;
 use motuslogistik\Metrics\Enums\Type;
 use motuslogistik\Metrics\Metrics\Counter;
 use motuslogistik\Metrics\Metrics\Gauge;
-use motuslogistik\Metrics\Metrics\Histogram;
 
 class PendingMetric
 {
@@ -53,11 +52,6 @@ class PendingMetric
     public function gauge(): Gauge
     {
         return $this->as(Gauge::class);
-    }
-
-    public function histogram(): Histogram
-    {
-        return $this->as(Histogram::class);
     }
 
     /**
