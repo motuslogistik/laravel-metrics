@@ -2,43 +2,43 @@
 
 namespace motuslogistik\Metrics;
 
-use motuslogistik\Metrics\Contracts\Store;
+use OpenTelemetry\API\Globals;
+use OpenTelemetry\API\Metrics\GaugeInterface;
+use OpenTelemetry\API\Metrics\HistogramInterface;
+use OpenTelemetry\API\Metrics\MeterInterface;
+use OpenTelemetry\API\Metrics\MeterProviderInterface;
+use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 
 class Metrics
 {
-    public const GLOBAL_STORE = Store::class.':global';
-
-    public static function prefix(): string
+    public static function meter(): MeterInterface
     {
-        return config('metrics.prefix', 'metrics|');
+        return self::meterProvider()->getMeter(
+            config('metrics.meter_name', 'motuslogistik/metrics'),
+        );
     }
 
-    public static function store(): Store
+    public static function upDownCounter(string $name): UpDownCounterInterface
     {
-        return app(Store::class);
+        return self::meter()->createUpDownCounter($name);
     }
 
-    public static function globalStore(): ?Store
+    public static function gauge(string $name): GaugeInterface
     {
-        if (! app()->bound(self::GLOBAL_STORE)) {
-            return null;
+        return self::meter()->createGauge($name);
+    }
+
+    public static function histogram(string $name): HistogramInterface
+    {
+        return self::meter()->createHistogram($name);
+    }
+
+    protected static function meterProvider(): MeterProviderInterface
+    {
+        if (app()->bound(MeterProviderInterface::class)) {
+            return app(MeterProviderInterface::class);
         }
 
-        return app(self::GLOBAL_STORE);
-    }
-
-    /**
-     * @return list<Store>
-     */
-    public static function stores(): array
-    {
-        $stores = [self::store()];
-
-        $global = self::globalStore();
-        if ($global !== null) {
-            $stores[] = $global;
-        }
-
-        return $stores;
+        return Globals::meterProvider();
     }
 }

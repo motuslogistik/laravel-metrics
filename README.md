@@ -2,7 +2,17 @@
 
 > **Internal package** — proprietary to Motus Logistik. Not licensed for external use. See [LICENSE.md](LICENSE.md).
 
-Lightweight application metrics for Laravel. Counters, gauges and histograms written to a pluggable store (APCu, in-memory, or Swoole Table), with Prometheus/Grafana-compatible type metadata.
+A thin Laravel-friendly facade over the [OpenTelemetry PHP SDK](https://opentelemetry.io/docs/languages/php/). Counters, gauges and timing helpers that emit OTel instruments — the recording layer, exporter, and aggregation are handled by OTel.
+
+## Architecture
+
+```
+Laravel app  ──(this package)──>  OTel SDK  ──OTLP──>  OTel Collector  ──>  Prometheus / Grafana / …
+```
+
+In classic PHP-FPM (or any forking model) each request is a fresh process, so per-process metric state cannot be scraped meaningfully. **You must run an OpenTelemetry Collector** somewhere reachable (sidecar container, host-level daemon, …) — that's where requests push to, and that's what Prometheus scrapes.
+
+This is a breaking change from the pre-1.x line, which used APCu / Redis / Swoole shared memory and exposed `/metrics` directly from PHP. See [CHANGELOG.md](CHANGELOG.md).
 
 ## Installation
 
@@ -10,7 +20,18 @@ Lightweight application metrics for Laravel. Counters, gauges and histograms wri
 composer require motuslogistik/metrics
 ```
 
-Publish the config:
+You also need an OpenTelemetry SDK bootstrap. The most common setup is environment-driven autoload via `open-telemetry/opentelemetry-auto-laravel`, or manual bootstrap in a service provider. At minimum the SDK needs:
+
+```env
+OTEL_PHP_AUTOLOAD_ENABLED=true
+OTEL_SERVICE_NAME=your-app
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+OTEL_METRICS_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=none
+OTEL_TRACES_EXPORTER=none   # unless you also want traces
+```
+
+Publish the package config (optional — only one knob):
 
 ```bash
 php artisan vendor:publish --tag="metrics-config"
@@ -19,38 +40,9 @@ php artisan vendor:publish --tag="metrics-config"
 ```php
 // config/metrics.php
 return [
-    'store'  => \motuslogistik\Metrics\Stores\ArrayStore::class,
-    'prefix' => 'metrics|',
+    'meter_name' => 'motuslogistik/metrics',
 ];
 ```
-
-### Stores
-
-- `ArrayStore` — in-memory, per-request. Default. Good for tests.
-- `APCStore` — shared memory via the `apcu` extension. Use in classic FPM.
-  - Requires `ext-apcu` and `apc.enable_cli=1` if you run metrics from CLI.
-- `SwooleTableStore` — shared memory across Octane workers via Swoole Tables. Use with Laravel Octane / Swoole.
-  - Requires `ext-swoole`. Size is fixed at boot via `metrics.swoole.size`.
-- `RedisStore` — shared across processes/hosts via Redis. Use when scraping from a separate process or aggregating across nodes.
-  - Uses Laravel's Redis connection. Configure with `metrics.redis.connection` (defaults to the default connection).
-
-Swap stores by setting `'store'` in the config file.
-
-### Global metrics
-
-Some metrics — counts of users, totals across all nodes — must live outside per-process memory. Configure a second store as `global_store` and route individual metrics to it with `->global()`:
-
-```php
-// config/metrics.php
-'store'        => APCStore::class,    // per-host
-'global_store' => RedisStore::class,  // shared across hosts
-
-// callsite
-counter('users_total')->global()->incr();
-gauge('queue_depth')->global()->record(42);
-```
-
-The `/metrics` endpoint scrapes both stores and merges the output. `->global()` throws if no `global_store` is configured.
 
 ## Usage
 
@@ -64,19 +56,16 @@ gauge('cpu_usage', ['host' => 'web1'])->record(0.83);
 histogram('http_latency', ['path' => '/home'])->record(123);
 ```
 
-Counters expose three operations:
+Counters expose `incr()` and `decr()`. Under the hood they emit to an OTel `UpDownCounter`, so both directions work on the same instrument:
 
 ```php
 counter('orders_created')->incr();        // +1
 counter('queue_depth')->incr(5);          // +5
 counter('queue_depth')->decr();           // -1
 counter('queue_depth')->decr(3);          // -3
-counter('orders_total')->set(42);         // overwrite to 42
 ```
 
-`incr()` / `decr()` adjust the stored value relatively. `set($value)` overwrites it — useful when the count is sampled from another source rather than tallied locally.
-
-`record()` (no args) is kept as an alias for `incr()` so existing callsites keep working.
+`record()` (no args) is kept as an alias for `incr()` so existing call sites keep working.
 
 The label array is a shortcut; `->label()` still works for dynamic labels or longer chains:
 
@@ -108,7 +97,16 @@ histogram('http_render')
     ->observe(fn () => renderHomepage());
 ```
 
-`observe()` times the closure, records the duration (ms), and returns the closure's result.
+`observe()` times the closure, records the duration (seconds, float), and returns the closure's result. It lives on `histogram()` only — histograms are the right instrument for distribution-shaped data like latencies (you get count, sum, buckets, percentiles).
+
+### `gauge()->set()`
+
+`set()` is an alias for `record()` on `Gauge`, kept so call sites migrating from the old `counter()->set($n)` API need only swap the helper:
+
+```php
+counter('orders_total')->set(42);   // old (removed)
+gauge('orders_total')->set(42);     // new
+```
 
 ### Backed enums
 
@@ -124,43 +122,18 @@ counter('orders_created')
 
 Int-backed enums are coerced to string (`Status::One = 1` → `"1"`).
 
-### Reserved characters
+### `->global()` is now a no-op
 
-`|`, `;`, and `=` are key delimiters and may not appear in any input. Passing them throws `InvalidArgumentException`. Colons (`:`) are allowed — Prometheus treats them as valid in metric names (used for recording rules).
+In the previous architecture `->global()` routed a metric to a Redis store shared across hosts. With OTel that distinction disappears: every metric flushes via OTLP to the Collector, which is already global. The method is kept on `PendingMetric` so existing call sites don't break, but it does nothing.
 
-## Scrape endpoint
+## Removed in the OTel migration
 
-A Prometheus-format scrape endpoint is registered automatically at `/metrics`:
+- **`counter()->set($n)`** — OTel counters are delta-only. Use a `gauge()` for absolute values you sample from elsewhere.
+- **`/metrics` route** — the Collector exposes Prometheus now.
+- **`Store` contract + all stores** — OTel owns aggregation. `ext-apcu` is no longer required.
+- **Reserved-character validation on names/labels** (`|;=`) — that was only needed for the old key format.
 
-```
-# TYPE orders_created counter
-orders_created{status="paid"} 3
-
-# TYPE cpu_usage gauge
-cpu_usage{host="web1"} 0.83
-```
-
-Configure via `metrics.route`:
-
-```php
-'route' => [
-    'enabled'    => true,
-    'path'       => '/metrics',
-    'middleware' => ['auth:api'], // e.g. protect behind a middleware
-],
-```
-
-Set `'enabled' => false` to opt out and register your own route pointing at `MetricsController::class`.
-
-## Key format
-
-```
-<prefix><name>;<label>=<value>;<label>=<value>
-```
-
-Labels are sorted alphabetically so label ordering at the call site never affects the key. Default prefix is `metrics|`, configurable via `metrics.prefix` — change it if you share an APCu pool with other apps.
-
-Each metric also writes a type hint at `<prefix>__types|<name>` (`counter` / `gauge` / `histogram`). This is for exporters to emit correct `# TYPE` lines — internally, nothing branches on it.
+If you need any of these, pin to a pre-1.x version of this package.
 
 ## Testing
 
@@ -168,13 +141,7 @@ Each metric also writes a type hint at `<prefix>__types|<name>` (`counter` / `ga
 composer test
 ```
 
-APCu tests run only when APCu is enabled for CLI:
-
-```bash
-php -d apc.enable_cli=1 vendor/bin/pest
-```
-
-Without the flag, they self-skip.
+Tests use OTel's `InMemoryExporter` + `ExportingReader` — no Collector or network required. See `tests/TestCase.php` for the wiring.
 
 ## Changelog
 
