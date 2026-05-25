@@ -1,5 +1,7 @@
 <?php
 
+use OpenTelemetry\SDK\Metrics\Data\Gauge;
+
 it('records a value on record()', function () {
     gauge('cpu_usage')->label('host', 'web1')->record(0.83);
 
@@ -18,7 +20,7 @@ it('emits a Gauge data type', function () {
     gauge('cpu_usage')->record(1);
 
     expect($this->metric('cpu_usage')->data)
-        ->toBeInstanceOf(\OpenTelemetry\SDK\Metrics\Data\Gauge::class);
+        ->toBeInstanceOf(Gauge::class);
 });
 
 it('treats set() as an alias for record()', function () {
