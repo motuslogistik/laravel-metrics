@@ -2,32 +2,18 @@
 
 namespace motuslogistik\Metrics\Metrics;
 
-use Closure;
-use motuslogistik\Metrics\Enums\Type;
+use motuslogistik\Metrics\Metrics;
 use motuslogistik\Metrics\PendingMetric;
 
 class Gauge extends PendingMetric
 {
     public function record(int|float $value): void
     {
-        $this->store()->set($this->getKey(), $value);
-        $this->registerType(Type::Gauge);
+        Metrics::gauge($this->name)->record($value, $this->attributes());
     }
 
-    /**
-     * Time the given closure and record its duration in seconds (float).
-     *
-     * @template TReturn
-     *
-     * @param  Closure(): TReturn  $fn
-     * @return TReturn
-     */
-    public function observe(Closure $fn): mixed
+    public function set(int|float $value): void
     {
-        $start = microtime(true);
-        $result = $fn();
-        $this->record(microtime(true) - $start);
-
-        return $result;
+        $this->record($value);
     }
 }
