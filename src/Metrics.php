@@ -30,7 +30,12 @@ class Metrics
 
     public static function histogram(string $name): HistogramInterface
     {
-        return self::meter()->createHistogram($name);
+        $buckets = config('metrics.histogram_buckets.' . $name)
+            ?? config('metrics.default_histogram_buckets');
+
+        $advisory = $buckets !== null ? ['ExplicitBucketBoundaries' => $buckets] : [];
+
+        return self::meter()->createHistogram($name, advisory: $advisory);
     }
 
     protected static function meterProvider(): MeterProviderInterface
