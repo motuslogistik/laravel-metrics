@@ -3,11 +3,11 @@
 namespace motuslogistik\Metrics;
 
 use OpenTelemetry\API\Globals;
+use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\GaugeInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
-use OpenTelemetry\API\Metrics\UpDownCounterInterface;
 
 class Metrics
 {
@@ -18,9 +18,9 @@ class Metrics
         );
     }
 
-    public static function upDownCounter(string $name): UpDownCounterInterface
+    public static function counter(string $name): CounterInterface
     {
-        return self::meter()->createUpDownCounter($name);
+        return self::meter()->createCounter($name);
     }
 
     public static function gauge(string $name): GaugeInterface

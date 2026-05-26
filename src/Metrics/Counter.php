@@ -9,12 +9,7 @@ class Counter extends PendingMetric
 {
     public function incr(int|float $amount = 1): void
     {
-        Metrics::upDownCounter($this->name)->add($amount, $this->attributes());
-    }
-
-    public function decr(int|float $amount = 1): void
-    {
-        Metrics::upDownCounter($this->name)->add(-$amount, $this->attributes());
+        Metrics::counter($this->name)->add($amount, $this->attributes());
     }
 
     public function record(): void

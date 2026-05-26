@@ -19,21 +19,13 @@ it('increments by a custom amount on incr()', function () {
     expect($this->dataPoint($this->metric('orders_created'), ['status' => 'paid'])->value)->toBe(7);
 });
 
-it('decrements by 1 by default on decr()', function () {
-    $c = counter('queue_depth');
-    $c->incr(10);
-    $c->decr();
-    $c->decr();
+it('emits a monotonic Sum (Prometheus counter type)', function () {
+    counter('orders_created')->incr();
 
-    expect($this->dataPoint($this->metric('queue_depth'))->value)->toBe(8);
-});
+    $data = $this->metric('orders_created')->data;
 
-it('decrements by a custom amount on decr()', function () {
-    $c = counter('queue_depth');
-    $c->incr(10);
-    $c->decr(3);
-
-    expect($this->dataPoint($this->metric('queue_depth'))->value)->toBe(7);
+    expect($data)->toBeInstanceOf(\OpenTelemetry\SDK\Metrics\Data\Sum::class)
+        ->and($data->monotonic)->toBeTrue();
 });
 
 it('treats record() as an alias for incr() with no amount', function () {

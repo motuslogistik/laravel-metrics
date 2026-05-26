@@ -27,6 +27,7 @@ All notable changes to `metrics` will be documented in this file.
 
 ### Previous unreleased changes
 
+- **Breaking:** `Counter::decr()` is gone. `counter()` now emits an OTel `Counter` (monotonic) so Prometheus/Groundcover sees `# TYPE counter` and `rate()`/`increase()` work as intended. The previous OTel-`UpDownCounter` backing made the type surface as `gauge`, defeating the purpose. For up-and-down values, use `gauge()->set()`.
 - **Breaking:** `observe(Closure)` is gone from `Gauge`. Histograms are the right instrument for distribution-shaped timing data — use `histogram(...)->observe(...)` instead.
 - `observe(Closure)` records the duration in **seconds as a float** (Prometheus convention) instead of milliseconds as an int. Dashboards reading the old values will be off by a factor of 1000.
 - `RedisStore::iterator()` (now removed) had a double-prefixing bug fixed before the OTel migration.

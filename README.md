@@ -56,14 +56,14 @@ gauge('cpu_usage', ['host' => 'web1'])->record(0.83);
 histogram('http_latency', ['path' => '/home'])->record(123);
 ```
 
-Counters expose `incr()` and `decr()`. Under the hood they emit to an OTel `UpDownCounter`, so both directions work on the same instrument:
+Counters are monotonic — only `incr()`. Under the hood they emit to an OTel `Counter`, which surfaces in Prometheus/Groundcover with `# TYPE counter` so PromQL's `rate()` and `increase()` apply naturally:
 
 ```php
 counter('orders_created')->incr();        // +1
-counter('queue_depth')->incr(5);          // +5
-counter('queue_depth')->decr();           // -1
-counter('queue_depth')->decr(3);          // -3
+counter('orders_created')->incr(5);       // +5
 ```
+
+For up-and-down values like queue depth, use a `gauge()` instead — counters are for event counting only.
 
 `record()` (no args) is kept as an alias for `incr()` so existing call sites keep working.
 
