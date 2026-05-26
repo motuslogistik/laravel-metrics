@@ -1,5 +1,7 @@
 <?php
 
+use OpenTelemetry\SDK\Metrics\Data\Sum;
+
 it('increments by 1 by default on incr()', function () {
     $c = counter('orders_created')->label('status', 'paid');
     $c->incr();
@@ -24,7 +26,7 @@ it('emits a monotonic Sum (Prometheus counter type)', function () {
 
     $data = $this->metric('orders_created')->data;
 
-    expect($data)->toBeInstanceOf(\OpenTelemetry\SDK\Metrics\Data\Sum::class)
+    expect($data)->toBeInstanceOf(Sum::class)
         ->and($data->monotonic)->toBeTrue();
 });
 
