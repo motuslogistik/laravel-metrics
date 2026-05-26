@@ -30,7 +30,7 @@ class Metrics
 
     public static function histogram(string $name): HistogramInterface
     {
-        $buckets = config('metrics.histogram_buckets.' . $name)
+        $buckets = config('metrics.histogram_buckets.'.$name)
             ?? config('metrics.default_histogram_buckets');
 
         $advisory = $buckets !== null ? ['ExplicitBucketBoundaries' => $buckets] : [];
