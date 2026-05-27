@@ -33,7 +33,7 @@ OTEL_TRACES_EXPORTER=none   # unless you also want traces
 
 ### Recommended OTel env vars
 
-For PHP-FPM (and any forking model), two extra env vars matter a lot:
+For PHP-FPM (and any forking model), set delta temporality:
 
 ```env
 # Delta temporality. Each export reports the delta since the last export
@@ -43,16 +43,15 @@ For PHP-FPM (and any forking model), two extra env vars matter a lot:
 # consume delta OTLP (most can; some need the Collector's
 # `deltatocumulative` processor in front for native PromQL `rate()` to work).
 OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
-
-# Use exponential (base-2) histograms instead of explicit buckets. One layout
-# covers nanoseconds-to-minutes with consistent ~5% relative error, no
-# per-metric bucket tuning needed. Requires backend support for OTLP
-# exponential / Prometheus native histograms (VictoriaMetrics, recent
-# Prometheus, Groundcover — verify before relying on it).
-OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION=base2_exponential_bucket_histogram
 ```
 
-Both are optional. If you leave them unset, you get cumulative temporality + explicit-bucket histograms — the defaults are fine for long-lived processes (CLI workers, daemons) but fragile under PHP-FPM. Set them.
+Optional, but if you leave it unset you get cumulative temporality — fine for long-lived processes (CLI workers, daemons) but fragile under PHP-FPM. Set it.
+
+#### Exponential histograms — not supported in PHP yet
+
+`OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION=base2_exponential_bucket_histogram` is a no-op in the PHP SDK as of v1.14: `MeterProviderFactory::create()` carries a `@todo` to honor it, and no `Base2ExponentialBucketHistogramAggregation` class exists in `open-telemetry/sdk`. There's no programmatic workaround either — Views can route between explicit-bucket and sum/last-value aggregations, but there's no exponential aggregation class to route *to*.
+
+In practice: stay on explicit buckets, and size the bucket layout per metric (see [`histogram_buckets` config](#package-config)) for any histogram whose range you can't predict from the default `[0.001 … 10]` seconds-scale layout.
 
 ### Package config
 

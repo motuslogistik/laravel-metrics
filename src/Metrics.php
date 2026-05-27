@@ -31,27 +31,12 @@ class Metrics
 
     public static function histogram(string $name): HistogramInterface
     {
-        // Per-instrument ExplicitBucketBoundaries advisories override the
-        // env-level default aggregation preference in the PHP SDK (≥1.14
-        // observed). When the operator has asked for exponential histograms
-        // globally, skip the advisory entirely so the env preference wins.
-        if (self::wantsExponentialHistograms()) {
-            return self::meter()->createHistogram($name);
-        }
-
         $buckets = config('metrics.histogram_buckets.'.$name)
             ?? config('metrics.default_histogram_buckets');
 
         $advisory = $buckets !== null ? ['ExplicitBucketBoundaries' => $buckets] : [];
 
         return self::meter()->createHistogram($name, advisory: $advisory);
-    }
-
-    protected static function wantsExponentialHistograms(): bool
-    {
-        $pref = getenv('OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION');
-
-        return $pref === 'base2_exponential_bucket_histogram';
     }
 
     /**
