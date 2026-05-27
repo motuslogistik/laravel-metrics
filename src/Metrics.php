@@ -8,6 +8,7 @@ use OpenTelemetry\API\Metrics\GaugeInterface;
 use OpenTelemetry\API\Metrics\HistogramInterface;
 use OpenTelemetry\API\Metrics\MeterInterface;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
+use OpenTelemetry\SDK\Metrics\MeterProviderInterface as SdkMeterProviderInterface;
 
 class Metrics
 {
@@ -36,6 +37,23 @@ class Metrics
         $advisory = $buckets !== null ? ['ExplicitBucketBoundaries' => $buckets] : [];
 
         return self::meter()->createHistogram($name, advisory: $advisory);
+    }
+
+    /**
+     * Force-flush the OTel MeterProvider. The PHP SDK uses an ExportingReader
+     * with no periodic export — in long-running processes (queue workers, AMQP
+     * consumers, daemons) metrics would otherwise only flush on process death.
+     *
+     * `forceFlush()` lives on the SDK MeterProviderInterface, not the API one,
+     * so a noop provider (e.g. when `OTEL_SDK_DISABLED=true`) falls through
+     * silently.
+     */
+    public static function flush(): void
+    {
+        $provider = self::meterProvider();
+        if ($provider instanceof SdkMeterProviderInterface) {
+            $provider->forceFlush();
+        }
     }
 
     protected static function meterProvider(): MeterProviderInterface

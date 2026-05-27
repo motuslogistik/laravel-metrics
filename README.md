@@ -85,7 +85,8 @@ A few sharp edges to be aware of:
 - **Instruments are cached by name per process.** The OTel SDK creates an instrument on first `histogram($name)` call per worker and reuses it for the worker's lifetime. Bucket boundaries set via `default_histogram_buckets` / `histogram_buckets` are honored on that first creation only — changes require a worker restart (redeploy).
 - **Bucket layout changes invalidate historical series.** Old data lives in the backend under the old `le` labels; new exports use the new labels. Queries spanning the transition will mix two layouts. Either query strictly after the cutover, or rename the metric on the switch.
 - **Worker recycling shows as counter resets.** With cumulative temporality, a worker dying mid-window drops its accumulated count to 0 in the next worker. PromQL `rate()` is reset-aware so this usually doesn't hurt, but it's another reason delta temporality is easier to reason about under FPM.
-- **Queue workers auto-flush after every job.** The OTel PHP SDK uses an `ExportingReader` with no periodic export, so without this metrics from long-running workers would only flush on worker death. The package registers `Queue::after` / `Queue::failing` listeners that call `MeterProvider::forceFlush()` after each job. Set `metrics.flush_on_queue_job` to `false` to disable.
+- **Queue workers auto-flush after every job.** The OTel PHP SDK uses an `ExportingReader` with no periodic export, so without this metrics from long-running workers would only flush on worker death. The package registers `Queue::after` / `Queue::failing` listeners that call `Metrics::flush()` after each job. Set `metrics.flush_on_queue_job` to `false` to disable.
+- **Long-running processes outside the queue need their own flush.** AMQP consumers, custom daemons, scheduled-but-resident commands etc. never trigger the queue listeners. Either call `Metrics::flush()` at a sensible point in your loop, or — if you're using `observe()` on the per-event method — chain `->flushAfter()` to flush after each recorded sample. See [`Metrics::flush()`](#metricsflush) and [`observe()->flushAfter()`](#observe--auto-instrument-a-method).
 
 ## Usage
 
@@ -194,11 +195,36 @@ foreach ([StepA::class, StepB::class, StepC::class] as $step) {
 
 One metric, dimensional `step` label — PromQL aggregates across or drills into individual steps with `sum by (step)`.
 
+**Flushing for long-running processes:**
+
+If the observed method runs inside a long-lived process that isn't a queue worker (an AMQP consumer, a custom daemon), the queue-job auto-flush doesn't apply and recordings sit in the SDK's `ExportingReader` until the process dies. Chain `->flushAfter()` to force-flush after each invocation:
+
+```php
+observe(TmsListen::class, 'handleEvent')
+    ->name('tms_event_handle_seconds')
+    ->flushAfter();
+```
+
 **Caveats:**
 
 - The OTel SDK caches instruments by name *per process*, so the histogram's bucket layout is fixed at first call. If you change `default_histogram_buckets`, restart workers.
 - `observe()` registers the hook once at call time (typically in a service provider). The hook fires every time the target method is invoked thereafter.
 - The label value goes through OTel's attribute system; keep cardinality bounded. Don't put user IDs or request IDs as label values — use them in span attributes / logs instead.
+
+### `Metrics::flush()`
+
+Force-flushes the OTel `MeterProvider`. The OTel PHP SDK uses an `ExportingReader` with no periodic export, so any long-running process that isn't a queue worker (the package handles those automatically) needs to flush manually:
+
+```php
+use motuslogistik\Metrics\Metrics;
+
+while ($message = $consumer->next()) {
+    handle($message);
+    Metrics::flush();
+}
+```
+
+Safe to call when nothing has been recorded — `forceFlush()` is a no-op in that case. Also safe when the OTel SDK is disabled (`OTEL_SDK_DISABLED=true`): the noop provider is detected and skipped.
 
 ### `gauge()->set()`
 

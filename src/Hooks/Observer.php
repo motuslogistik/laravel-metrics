@@ -6,6 +6,7 @@ namespace motuslogistik\Metrics\Hooks;
 
 use Closure;
 use Illuminate\Support\Facades\Log;
+use motuslogistik\Metrics\Metrics;
 use ReflectionFunction;
 use Throwable;
 
@@ -20,6 +21,7 @@ class Observer
     /** @var array<int, list<string>> Keyed by spl_object_id($callback); orphaned on replacement. */
     protected array $callbackArgumentCache = [];
     protected bool $nameWarned = false;
+    protected bool $flushAfter = false;
 
     public function __construct(
         /**
@@ -82,6 +84,10 @@ class Observer
         $status = $this->resolveStatus($availableArgs);
 
         histogram($this->name, $labels + ['status' => $status])->record($duration);
+
+        if ($this->flushAfter) {
+            Metrics::flush();
+        }
     }
 
     protected function resolveLabels(array $availableArgs): array
@@ -172,6 +178,19 @@ class Observer
     public function successResolver(Closure $callback): self
     {
         $this->successResolver = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Force-flush the OTel MeterProvider after each recording. Use for
+     * long-running processes that don't go through Laravel's queue (e.g. AMQP
+     * consumers, custom daemons) — without this, the SDK's ExportingReader
+     * holds samples until the process dies.
+     */
+    public function flushAfter(bool $flush = true): self
+    {
+        $this->flushAfter = $flush;
 
         return $this;
     }

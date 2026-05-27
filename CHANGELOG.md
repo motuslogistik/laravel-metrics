@@ -4,6 +4,11 @@ All notable changes to `metrics` will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- `Metrics::flush()` — force-flushes the OTel `MeterProvider`. Use in long-running processes that aren't queue workers (AMQP consumers, daemons) where the SDK's `ExportingReader` would otherwise hold samples until the process dies.
+- `observe(...)->flushAfter()` — chain on an `observe()` registration to call `Metrics::flush()` after each recorded sample. Same use case as above, for when the observed method *is* the loop body.
+
 ### Changed
 
 - **Breaking:** the package is now a thin facade over the OpenTelemetry PHP SDK. Helpers (`counter()`, `gauge()`, `metric()`, `->label()`, `->incr()`, `->decr()`, `->record()`, `->observe()`) keep their signatures, but recording now emits via an OTel `Meter` instead of writing to an in-package store. Cross-process aggregation now requires running an **OpenTelemetry Collector** as a sidecar; PHP pushes via OTLP, the Collector exposes Prometheus.
