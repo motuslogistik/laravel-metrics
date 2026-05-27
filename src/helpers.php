@@ -1,5 +1,6 @@
 <?php
 
+use motuslogistik\Metrics\Hooks\Observer;
 use motuslogistik\Metrics\Metrics\Counter;
 use motuslogistik\Metrics\Metrics\Gauge;
 use motuslogistik\Metrics\Metrics\Histogram;
@@ -48,5 +49,18 @@ if (! function_exists('histogram')) {
     function histogram(string|BackedEnum $name, array $labels = []): Histogram
     {
         return motuslogistik_metrics_apply_labels(new Histogram($name), $labels);
+    }
+}
+
+if (! function_exists('observe')) {
+    /**
+     * Auto-instrument a method call with a latency histogram. Requires the
+     * `opentelemetry` PHP extension; logs a warning and no-ops otherwise.
+     *
+     * @param  class-string  $class
+     */
+    function observe(string $class, string $method, ?string $name = null): Observer
+    {
+        return new Observer($class, $method, $name);
     }
 }

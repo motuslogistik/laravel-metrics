@@ -31,7 +31,30 @@ OTEL_LOGS_EXPORTER=none
 OTEL_TRACES_EXPORTER=none   # unless you also want traces
 ```
 
-Publish the package config (optional — only one knob):
+### Recommended OTel env vars
+
+For PHP-FPM (and any forking model), two extra env vars matter a lot:
+
+```env
+# Delta temporality. Each export reports the delta since the last export
+# instead of a cumulative total. This avoids the "stuck-at-1" symptom where
+# Laravel re-bootstraps the container per request and the meter state is
+# reset before the cumulative count can grow. Requires a backend that can
+# consume delta OTLP (most can; some need the Collector's
+# `deltatocumulative` processor in front for native PromQL `rate()` to work).
+OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE=delta
+
+# Use exponential (base-2) histograms instead of explicit buckets. One layout
+# covers nanoseconds-to-minutes with consistent ~5% relative error, no
+# per-metric bucket tuning needed. Requires backend support for OTLP
+# exponential / Prometheus native histograms (VictoriaMetrics, recent
+# Prometheus, Groundcover — verify before relying on it).
+OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION=base2_exponential_bucket_histogram
+```
+
+Both are optional. If you leave them unset, you get cumulative temporality + explicit-bucket histograms — the defaults are fine for long-lived processes (CLI workers, daemons) but fragile under PHP-FPM. Set them.
+
+### Package config
 
 ```bash
 php artisan vendor:publish --tag="metrics-config"
@@ -41,8 +64,27 @@ php artisan vendor:publish --tag="metrics-config"
 // config/metrics.php
 return [
     'meter_name' => 'motuslogistik/metrics',
+
+    // Default explicit bucket boundaries (seconds scale). Ignored if you've
+    // switched to exponential histograms via the env var above.
+    'default_histogram_buckets' => [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+
+    // Per-histogram bucket overrides, keyed by exact metric name. Use for
+    // metrics on a different scale than seconds (byte sizes, item counts,
+    // sub-millisecond timings, etc.).
+    'histogram_buckets' => [
+        // 'payload_size_bytes' => [256, 1024, 4096, 16384, 65536, 262144, 1048576],
+    ],
 ];
 ```
+
+### PHP-FPM caveats
+
+A few sharp edges to be aware of:
+
+- **Instruments are cached by name per process.** The OTel SDK creates an instrument on first `histogram($name)` call per worker and reuses it for the worker's lifetime. Bucket boundaries set via `default_histogram_buckets` / `histogram_buckets` are honored on that first creation only — changes require a worker restart (redeploy).
+- **Bucket layout changes invalidate historical series.** Old data lives in the backend under the old `le` labels; new exports use the new labels. Queries spanning the transition will mix two layouts. Either query strictly after the cutover, or rename the metric on the switch.
+- **Worker recycling shows as counter resets.** With cumulative temporality, a worker dying mid-window drops its accumulated count to 0 in the next worker. PromQL `rate()` is reset-aware so this usually doesn't hurt, but it's another reason delta temporality is easier to reason about under FPM.
 
 ## Usage
 
@@ -94,10 +136,68 @@ Labels accumulated on `metric()` carry over when you call `->counter()`, `->gaug
 ```php
 histogram('http_render')
     ->label('path', '/home')
-    ->observe(fn () => renderHomepage());
+    ->time(fn () => renderHomepage());
 ```
 
-`observe()` times the closure, records the duration (seconds, float), and returns the closure's result. It lives on `histogram()` only — histograms are the right instrument for distribution-shaped data like latencies (you get count, sum, buckets, percentiles).
+`time()` runs the closure, records the duration (seconds, float), and returns the closure's result. It lives on `histogram()` only — histograms are the right instrument for distribution-shaped data like latencies (you get count, sum, buckets, percentiles).
+
+### `observe()` — auto-instrument a method
+
+For a class method you'd otherwise wrap by hand in every call site, the `observe()` helper hooks it once and emits a latency histogram for every invocation. Requires the [`opentelemetry` PHP extension](https://opentelemetry.io/docs/zero-code/php/setup/#install-the-extension); without it, calls log a warning and no-op.
+
+```php
+// In a service provider's register()
+observe(GetPersonalAccessTokenQuery::class, '__invoke')
+    ->name('get_personal_access_token_query_seconds');
+```
+
+That emits `get_personal_access_token_query_seconds` (a histogram) with a `status` label (`success` / `error` / `__error__`) on every call to `GetPersonalAccessTokenQuery::__invoke`.
+
+**Labels from the invocation:**
+
+Label closures get named-argument injection from `(instance, params, return, exception)` — declare only what you need:
+
+```php
+observe(Order::class, 'save')
+    ->name('order_save_seconds')
+    ->label('customer_id', fn ($instance) => $instance->customer_id)
+    ->label('was_new', fn ($return) => $return === true);
+```
+
+**Custom success/error logic:**
+
+By default, "success" means the method returned without throwing. Override with `successResolver()` when that's not enough — e.g. a method that returns `false` on validation failure:
+
+```php
+observe(SomeJob::class, 'handle')
+    ->name('some_job_seconds')
+    ->successResolver(fn ($return, $exception) => $exception === null && $return !== false);
+```
+
+Status values you'll see in PromQL:
+- `success` — `successResolver` returned truthy (or no exception by default)
+- `error` — `successResolver` returned falsy (or an exception was thrown)
+- `__error__` — a label callback or the success resolver itself threw. Inspect logs.
+
+**Registering many at once:**
+
+Iterate a list:
+
+```php
+foreach ([StepA::class, StepB::class, StepC::class] as $step) {
+    observe($step, '__invoke')
+        ->name('pipeline_step_seconds')
+        ->label('step', fn ($instance) => class_basename($instance));
+}
+```
+
+One metric, dimensional `step` label — PromQL aggregates across or drills into individual steps with `sum by (step)`.
+
+**Caveats:**
+
+- The OTel SDK caches instruments by name *per process*, so the histogram's bucket layout is fixed at first call. If you change `default_histogram_buckets`, restart workers.
+- `observe()` registers the hook once at call time (typically in a service provider). The hook fires every time the target method is invoked thereafter.
+- The label value goes through OTel's attribute system; keep cardinality bounded. Don't put user IDs or request IDs as label values — use them in span attributes / logs instead.
 
 ### `gauge()->set()`
 

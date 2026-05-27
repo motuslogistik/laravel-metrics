@@ -29,14 +29,14 @@ it('emits a Histogram data type', function () {
     expect($this->metric('http_latency')->data)->toBeInstanceOf(HistogramData::class);
 });
 
-it('returns the closure result from observe()', function () {
-    $result = histogram('http_render')->observe(fn () => 'payload');
+it('returns the closure result from time()', function () {
+    $result = histogram('http_render')->time(fn () => 'payload');
 
     expect($result)->toBe('payload');
 });
 
-it('records the duration in seconds as a float after observe()', function () {
-    histogram('http_render')->label('path', '/home')->observe(fn () => null);
+it('records the duration in seconds as a float after time()', function () {
+    histogram('http_render')->label('path', '/home')->time(fn () => null);
 
     $point = $this->dataPoint($this->metric('http_render'), ['path' => '/home']);
 

@@ -22,6 +22,9 @@
         "open-telemetry/sdk": "^1.0",
         "spatie/laravel-package-tools": "^1.16"
     },
+    "suggest": {
+        "ext-opentelemetry": "Required for MetricHook::observe() — auto-instrument class methods with latency histograms."
+    },
     "require-dev": {
         "laravel/pint": "^1.14",
         "nunomaduro/collision": "^8.8",

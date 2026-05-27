@@ -21,7 +21,7 @@ class Histogram extends PendingMetric
      * @param  Closure(): TReturn  $fn
      * @return TReturn
      */
-    public function observe(Closure $fn): mixed
+    public function time(Closure $fn): mixed
     {
         $start = microtime(true);
         $result = $fn();
