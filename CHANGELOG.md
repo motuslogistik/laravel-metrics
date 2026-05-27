@@ -9,6 +9,10 @@ All notable changes to `metrics` will be documented in this file.
 - `Metrics::flush()` — force-flushes the OTel `MeterProvider`. Use in long-running processes that aren't queue workers (AMQP consumers, daemons) where the SDK's `ExportingReader` would otherwise hold samples until the process dies.
 - `observe(...)->flushAfter()` — chain on an `observe()` registration to call `Metrics::flush()` after each recorded sample. Same use case as above, for when the observed method *is* the loop body.
 
+### Fixed
+
+- `Metrics::histogram()` no longer passes an `ExplicitBucketBoundaries` advisory when `OTEL_EXPORTER_OTLP_METRICS_DEFAULT_HISTOGRAM_AGGREGATION=base2_exponential_bucket_histogram` is set. The PHP SDK (≥1.14 observed) honors the per-instrument advisory over the env preference, which silently kept callers on classic histograms even when they'd asked for exponential globally. Confirmed against a local OTel-Collector + VictoriaMetrics stack.
+
 ### Changed
 
 - **Breaking:** the package is now a thin facade over the OpenTelemetry PHP SDK. Helpers (`counter()`, `gauge()`, `metric()`, `->label()`, `->incr()`, `->decr()`, `->record()`, `->observe()`) keep their signatures, but recording now emits via an OTel `Meter` instead of writing to an in-package store. Cross-process aggregation now requires running an **OpenTelemetry Collector** as a sidecar; PHP pushes via OTLP, the Collector exposes Prometheus.

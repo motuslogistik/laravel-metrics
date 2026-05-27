@@ -168,6 +168,36 @@ class Observer
         return $this;
     }
 
+    /**
+     * Attach a label whose value is computed per invocation.
+     *
+     * The callback is invoked after the hooked method returns. Its arguments
+     * are auto-injected by **parameter name** (PHP named arguments) from a
+     * fixed set of available bindings — declare only the ones you need:
+     *
+     * - `$instance`   — the object the hooked method was called on (or null for static)
+     * - `$params`     — the arguments the method was called with (list)
+     * - `$return`     — the value the method returned (mixed; null on void/throw)
+     * - `$exception`  — the thrown Throwable, or null if the call succeeded
+     *
+     * Parameter **names** matter; types and order do not. Type hints are
+     * ignored. The reflected signature is cached per closure instance.
+     *
+     * If the callback throws, the failure is logged and the label takes the
+     * sentinel value `'__error__'` so dashboards can spot it.
+     *
+     * ```php
+     * observe(Order::class, 'save')
+     *     ->name('order_save_seconds')
+     *     ->label('customer_id', fn ($instance) => $instance->customer_id)
+     *     ->label('was_new',     fn ($return) => $return === true)
+     *     ->label('error_class', fn ($exception) => $exception?->::class ?? 'none');
+     * ```
+     *
+     * **Cardinality warning:** label values become dimensions in the time
+     * series database. Keep them bounded — never user IDs, request IDs,
+     * unbounded enums, or anything growing with traffic.
+     */
     public function label(string $label, Closure $callback): self
     {
         $this->labels[$label] = $callback;
@@ -175,6 +205,27 @@ class Observer
         return $this;
     }
 
+    /**
+     * Override the default success/error classification.
+     *
+     * By default an invocation is `success` when it didn't throw, `error`
+     * when it did. Provide a resolver when that's too coarse — e.g. a method
+     * that returns `false` on validation failure.
+     *
+     * The callback signature follows the same named-injection rules as
+     * {@see label()}: declare any subset of `$instance`, `$params`, `$return`,
+     * `$exception`. Return truthy for success, falsy for error.
+     *
+     * If the resolver itself throws, the `status` label takes the sentinel
+     * value `'__error__'` — distinct from the operation's own success/error,
+     * because we genuinely couldn't tell.
+     *
+     * ```php
+     * observe(SomeJob::class, 'handle')
+     *     ->name('some_job_seconds')
+     *     ->successResolver(fn ($return, $exception) => $exception === null && $return !== false);
+     * ```
+     */
     public function successResolver(Closure $callback): self
     {
         $this->successResolver = $callback;
