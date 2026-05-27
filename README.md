@@ -78,13 +78,14 @@ return [
 ];
 ```
 
-### PHP-FPM caveats
+### PHP-FPM and queue worker caveats
 
 A few sharp edges to be aware of:
 
 - **Instruments are cached by name per process.** The OTel SDK creates an instrument on first `histogram($name)` call per worker and reuses it for the worker's lifetime. Bucket boundaries set via `default_histogram_buckets` / `histogram_buckets` are honored on that first creation only — changes require a worker restart (redeploy).
 - **Bucket layout changes invalidate historical series.** Old data lives in the backend under the old `le` labels; new exports use the new labels. Queries spanning the transition will mix two layouts. Either query strictly after the cutover, or rename the metric on the switch.
 - **Worker recycling shows as counter resets.** With cumulative temporality, a worker dying mid-window drops its accumulated count to 0 in the next worker. PromQL `rate()` is reset-aware so this usually doesn't hurt, but it's another reason delta temporality is easier to reason about under FPM.
+- **Queue workers auto-flush after every job.** The OTel PHP SDK uses an `ExportingReader` with no periodic export, so without this metrics from long-running workers would only flush on worker death. The package registers `Queue::after` / `Queue::failing` listeners that call `MeterProvider::forceFlush()` after each job. Set `metrics.flush_on_queue_job` to `false` to disable.
 
 ## Usage
 

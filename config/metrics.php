@@ -29,4 +29,17 @@ return [
     'histogram_buckets' => [
         // 'metric_name' => [0.0001, 0.001, 0.01, 0.1, 1],
     ],
+
+    /*
+     | Force-flush the OTel MeterProvider after every queue job. The OTel PHP
+     | SDK uses an ExportingReader with no periodic export, so in long-running
+     | queue workers metrics would otherwise only flush when the worker dies.
+     | The listener fires for every queue job (including the sync driver);
+     | forceFlush() is a no-op when there's nothing to push, so the overhead
+     | is negligible.
+     |
+     | Disable if you have your own flushing strategy (periodic timer,
+     | manual flush) or don't want listeners on the queue lifecycle.
+     */
+    'flush_on_queue_job' => true,
 ];
