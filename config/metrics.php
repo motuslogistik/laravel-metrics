@@ -48,4 +48,17 @@ return [
      | manual flush) or don't want listeners on the queue lifecycle.
      */
     'flush_on_queue_job' => true,
+
+    /*
+     | Force-flush the OTel MeterProvider on Octane lifecycle events. The OTel
+     | PHP SDK's ExportingReader has no periodic export, so under long-lived
+     | Octane (Swoole/RoadRunner) workers HTTP-recorded metrics would buffer in
+     | memory until the worker recycles — and be lost on a crash. This listens
+     | on Octane's request/task/tick termination events (which fire after the
+     | response is sent, so no added latency) plus worker shutdown. Harmless
+     | when Octane isn't installed; the events are simply never dispatched.
+     |
+     | Disable if you run your own periodic flush.
+     */
+    'flush_on_octane' => true,
 ];

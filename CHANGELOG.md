@@ -8,6 +8,8 @@ All notable changes to `metrics` will be documented in this file.
 
 - `Metrics::flush()` — force-flushes the OTel `MeterProvider`. Use in long-running processes that aren't queue workers (AMQP consumers, daemons) where the SDK's `ExportingReader` would otherwise hold samples until the process dies.
 - `observe(...)->flushAfter()` — chain on an `observe()` registration to call `Metrics::flush()` after each recorded sample. Same use case as above, for when the observed method *is* the loop body.
+- **Laravel Octane support, out of the box.** The package now flushes the `MeterProvider` on Octane's `RequestTerminated`, `TaskTerminated`, `TickTerminated` and `WorkerStopping` events, so HTTP-recorded metrics no longer buffer indefinitely in long-lived Swoole/RoadRunner workers. Controlled by the new `metrics.flush_on_octane` config flag (default `true`); harmless when Octane isn't installed.
+- `observe()` timing is now coroutine-safe — the per-method start times are keyed by Swoole coroutine id, so durations stay correct when calls interleave under `Octane::concurrently()` or manual coroutines (outside coroutines the behavior is unchanged).
 
 ### Documented
 

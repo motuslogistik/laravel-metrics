@@ -8,6 +8,7 @@ use Closure;
 use Illuminate\Support\Facades\Log;
 use motuslogistik\Metrics\Metrics;
 use ReflectionFunction;
+use Swoole\Coroutine;
 use Throwable;
 
 use function OpenTelemetry\Instrumentation\hook;
@@ -15,12 +16,21 @@ use function OpenTelemetry\Instrumentation\hook;
 class Observer
 {
     protected static bool $extensionWarned = false;
+
+    protected static ?bool $hasSwoole = null;
+
+    /** @var array<int, list<int>> Start times keyed by coroutine id (-1 outside any coroutine). */
     protected array $startStack = [];
+
     protected array $labels = [];
+
     protected ?Closure $successResolver = null;
+
     /** @var array<int, list<string>> Keyed by spl_object_id($callback); orphaned on replacement. */
     protected array $callbackArgumentCache = [];
+
     protected bool $nameWarned = false;
+
     protected bool $flushAfter = false;
 
     public function __construct(
@@ -31,10 +41,10 @@ class Observer
         protected string $method,
         protected ?string $name = null,
     ) {
-        if (!extension_loaded('opentelemetry')) {
-            if (!self::$extensionWarned) {
+        if (! extension_loaded('opentelemetry')) {
+            if (! self::$extensionWarned) {
                 Log::warning(
-                    'Observer for ' . $this->class . '::' . $this->method . ' cannot be initiated, ' .
+                    'Observer for '.$this->class.'::'.$this->method.' cannot be initiated, '.
                     'opentelemetry extension not loaded.',
                 );
                 self::$extensionWarned = true;
@@ -46,26 +56,43 @@ class Observer
         hook(
             class: $this->class,
             function: $this->method,
-            pre: fn($instance, array $params) => $this->pre($instance, $params),
-            post: fn($instance, array $params, $return, ?Throwable $e) => $this->post($instance, $params, $return, $e),
+            pre: fn ($instance, array $params) => $this->pre($instance, $params),
+            post: fn ($instance, array $params, $return, ?Throwable $e) => $this->post($instance, $params, $return, $e),
         );
+    }
+
+    /**
+     * Current Swoole coroutine id, or -1 when not running in a coroutine (and
+     * also when Swoole is absent). Keying the start stack on this keeps timing
+     * correct when coroutines interleave pre/post on the same Observer instance.
+     */
+    protected function currentCid(): int
+    {
+        self::$hasSwoole ??= class_exists(Coroutine::class);
+
+        return self::$hasSwoole ? Coroutine::getCid() : -1;
     }
 
     protected function pre($instance, array $params): void
     {
-        $this->startStack[] = hrtime(true);
+        $this->startStack[$this->currentCid()][] = hrtime(true);
     }
 
     protected function post($instance, array $params, $return, ?Throwable $e): void
     {
-        $start = array_pop($this->startStack);
-        if ($start === null) {
+        $cid = $this->currentCid();
+        if (empty($this->startStack[$cid])) {
             return;
         }
 
+        $start = array_pop($this->startStack[$cid]);
+        if ($this->startStack[$cid] === []) {
+            unset($this->startStack[$cid]);
+        }
+
         if ($this->name === null) {
-            if (!$this->nameWarned) {
-                Log::warning('Observer for ' . $this->class . '::' . $this->method . ' is missing name.');
+            if (! $this->nameWarned) {
+                Log::warning('Observer for '.$this->class.'::'.$this->method.' is missing name.');
                 $this->nameWarned = true;
             }
 
@@ -83,11 +110,19 @@ class Observer
         $labels = $this->resolveLabels($availableArgs);
         $status = $this->resolveStatus($availableArgs);
 
-        histogram($this->name, $labels + ['status' => $status])->record($duration);
+        $this->record($labels + ['status' => $status], $duration);
 
         if ($this->flushAfter) {
             Metrics::flush();
         }
+    }
+
+    /**
+     * @param  array<string, string>  $labels
+     */
+    protected function record(array $labels, float $duration): void
+    {
+        histogram($this->name, $labels)->record($duration);
     }
 
     protected function resolveLabels(array $availableArgs): array
@@ -104,8 +139,8 @@ class Observer
                 $resolved[$label] = $callback(...$args);
             } catch (Throwable $e) {
                 Log::warning(
-                    'Failed to resolve label "' . $label . '" for ' .
-                    $this->class . '::' . $this->method . ': ' . $e->getMessage(),
+                    'Failed to resolve label "'.$label.'" for '.
+                    $this->class.'::'.$this->method.': '.$e->getMessage(),
                 );
                 $resolved[$label] = '__error__';
             }
@@ -155,7 +190,7 @@ class Observer
         try {
             return ($this->successResolver)(...$args) ? 'success' : 'error';
         } catch (Throwable $e) {
-            Log::warning('Success resolver for ' . $this->class . '::' . $this->method . ' threw: ' . $e->getMessage());
+            Log::warning('Success resolver for '.$this->class.'::'.$this->method.' threw: '.$e->getMessage());
 
             return '__error__';
         }

@@ -74,10 +74,15 @@ return [
     'histogram_buckets' => [
         // 'payload_size_bytes' => [256, 1024, 4096, 16384, 65536, 262144, 1048576],
     ],
+
+    // Flush after each queue job, and on Octane request/task/tick termination
+    // and worker shutdown. Both default to true; see the caveats below.
+    'flush_on_queue_job' => true,
+    'flush_on_octane' => true,
 ];
 ```
 
-### PHP-FPM and queue worker caveats
+### PHP-FPM, queue worker, and Octane caveats
 
 A few sharp edges to be aware of:
 
@@ -85,6 +90,7 @@ A few sharp edges to be aware of:
 - **Bucket layout changes invalidate historical series.** Old data lives in the backend under the old `le` labels; new exports use the new labels. Queries spanning the transition will mix two layouts. Either query strictly after the cutover, or rename the metric on the switch.
 - **Worker recycling shows as counter resets.** With cumulative temporality, a worker dying mid-window drops its accumulated count to 0 in the next worker. PromQL `rate()` is reset-aware so this usually doesn't hurt, but it's another reason delta temporality is easier to reason about under FPM.
 - **Queue workers auto-flush after every job.** The OTel PHP SDK uses an `ExportingReader` with no periodic export, so without this metrics from long-running workers would only flush on worker death. The package registers `Queue::after` / `Queue::failing` listeners that call `Metrics::flush()` after each job. Set `metrics.flush_on_queue_job` to `false` to disable.
+- **Octane works out of the box.** Under Laravel Octane (Swoole/RoadRunner) a worker serves thousands of requests, so the process-death flush never arrives and HTTP-recorded metrics would buffer indefinitely. The package listens on Octane's `RequestTerminated`, `TaskTerminated`, `TickTerminated` (all dispatched *after* the response is sent, so no added latency) and `WorkerStopping` events, flushing on each. No setup needed — install Octane and it just works. Set `metrics.flush_on_octane` to `false` to disable. `observe()` timing is coroutine-safe, so it stays correct inside `Octane::concurrently()` and Swoole coroutines.
 - **Long-running processes outside the queue need their own flush.** AMQP consumers, custom daemons, scheduled-but-resident commands etc. never trigger the queue listeners. Either call `Metrics::flush()` at a sensible point in your loop, or — if you're using `observe()` on the per-event method — chain `->flushAfter()` to flush after each recorded sample. See [`Metrics::flush()`](#metricsflush) and [`observe()->flushAfter()`](#observe--auto-instrument-a-method).
 
 ## Usage
