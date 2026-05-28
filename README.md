@@ -216,6 +216,83 @@ observe(TmsListen::class, 'handleEvent')
 - `observe()` registers the hook once at call time (typically in a service provider). The hook fires every time the target method is invoked thereafter.
 - The label value goes through OTel's attribute system; keep cardinality bounded. Don't put user IDs or request IDs as label values — use them in span attributes / logs instead.
 
+### `Metrics::trackQueueJobs()` — instrument every queue job
+
+Hooks Laravel's queue lifecycle once and emits a latency histogram for **every**
+processed job, instead of you wiring `observe(...)` on each job class. Call it
+once, in a service provider's `boot()`:
+
+```php
+use motuslogistik\Metrics\Metrics;
+
+public function boot(): void
+{
+    Metrics::trackQueueJobs();
+}
+```
+
+That emits `queue_job_seconds` (a histogram) on every job, with labels:
+
+- `job` — the resolved job class name
+- `queue` — the queue the job ran on
+- `connection` — the queue connection
+- `status` — `success`, or `error` if the job threw / was marked failed
+
+```promql
+# p95 processing time per job class
+histogram_quantile(0.95, sum by (job, le) (rate(queue_job_seconds_bucket[5m])))
+```
+
+**Scoping:**
+
+```php
+Metrics::trackQueueJobs()
+    ->except(HeartbeatJob::class)      // skip noisy / high-frequency jobs
+    ->name('job_runtime_seconds');     // override the metric name
+
+Metrics::trackQueueJobs()
+    ->only(ImportJob::class, ChangeOrderJob::class);   // allow-list instead
+```
+
+**Zero-config alternative.** If you just want every job tracked without touching
+a service provider, flip the config flag instead of calling `trackQueueJobs()`:
+
+```php
+// config/metrics.php
+'auto_track_jobs' => true,
+'auto_track_jobs_except' => [
+    HeartbeatJob::class,
+],
+```
+
+The package wires `trackQueueJobs()->except(...)` for you on boot. Use *either*
+the config flag *or* a manual `trackQueueJobs()` call — doing both counts every
+job twice.
+
+**What it measures — and what it doesn't.** The histogram covers the whole
+`JobProcessing` → `JobProcessed`/`JobExceptionOccurred` window, i.e. everything
+inside the worker's `$job->fire()`: payload **deserialization** (including
+`SerializesModels` model re-hydration — which can hit the DB), the **job
+middleware** pipeline (`WithoutOverlapping`, `RateLimited`, …), the `handle()`
+body, and post-handle chain/batch bookkeeping. It does **not** include queue
+wait time or the payload pop.
+
+That's usually what you want for "how long does this job take to process." If you
+need *strictly* the `handle()` method body — excluding deserialization and
+middleware — use [`observe($job, 'handle')`](#observe--auto-instrument-a-method)
+instead; the two measure deliberately different spans and can be used together.
+
+**Notes:**
+
+- Call once. It's idempotent only in the sense that each call registers a fresh
+  set of listeners — calling it twice double-counts. Once per worker (a provider
+  `boot()`) is correct under Octane.
+- Flushing is handled by the existing queue auto-flush (`flush_on_queue_job`);
+  no `flushAfter()` needed.
+- Keep `queue` cardinality in mind if you generate per-tenant or per-id queue
+  names — `except()`/`only()` won't help there since the explosion is in the
+  label, not the job class.
+
 ### `Metrics::flush()`
 
 Force-flushes the OTel `MeterProvider`. The OTel PHP SDK uses an `ExportingReader` with no periodic export, so any long-running process that isn't a queue worker (the package handles those automatically) needs to flush manually:

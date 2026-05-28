@@ -6,6 +6,8 @@ All notable changes to `metrics` will be documented in this file.
 
 ### Added
 
+- `Metrics::trackQueueJobs()` — hooks Laravel's queue lifecycle once and emits a `queue_job_seconds` histogram (labels: `job`, `queue`, `connection`, `status`) for every processed job, instead of wiring `observe()` per job class. Chain `->except(...)` / `->only(...)` to scope it and `->name(...)` to rename. Measures the full `$job->fire()` window (deserialization + middleware + `handle()` + bookkeeping), distinct from `observe($job, 'handle')` which measures the method body alone.
+- `auto_track_jobs` / `auto_track_jobs_except` config — enable `trackQueueJobs()` for the whole app without touching a service provider. Both default off; the package calls `Metrics::trackQueueJobs()->except(...)` on boot when enabled.
 - `Metrics::flush()` — force-flushes the OTel `MeterProvider`. Use in long-running processes that aren't queue workers (AMQP consumers, daemons) where the SDK's `ExportingReader` would otherwise hold samples until the process dies.
 - `observe(...)->flushAfter()` — chain on an `observe()` registration to call `Metrics::flush()` after each recorded sample. Same use case as above, for when the observed method *is* the loop body.
 - **Laravel Octane support, out of the box.** The package now flushes the `MeterProvider` on Octane's `RequestTerminated`, `TaskTerminated`, `TickTerminated` and `WorkerStopping` events, so HTTP-recorded metrics no longer buffer indefinitely in long-lived Swoole/RoadRunner workers. Controlled by the new `metrics.flush_on_octane` config flag (default `true`); harmless when Octane isn't installed.

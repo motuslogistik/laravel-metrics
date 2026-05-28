@@ -61,4 +61,26 @@ return [
      | Disable if you run your own periodic flush.
      */
     'flush_on_octane' => true,
+
+    /*
+     | Auto-instrument every queue job with a `queue_job_seconds` latency
+     | histogram (labels: job, queue, connection, status) without wiring
+     | `Metrics::trackQueueJobs()` by hand in a service provider. Off by default;
+     | flip to true and you get per-job timing for the whole queue.
+     |
+     | This measures the full job-processing window (deserialization +
+     | middleware + handle() + bookkeeping), not just handle() — see
+     | Metrics::trackQueueJobs() in the README. If you enable this, do NOT also
+     | call Metrics::trackQueueJobs() yourself, or jobs get counted twice.
+     */
+    'auto_track_jobs' => false,
+
+    /*
+     | Job classes to exclude when `auto_track_jobs` is on — e.g. high-frequency
+     | heartbeat jobs whose timing isn't worth a time series. Matched against the
+     | job's resolved class name.
+     */
+    'auto_track_jobs_except' => [
+        // App\Jobs\HeartbeatJob::class,
+    ],
 ];

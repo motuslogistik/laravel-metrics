@@ -2,6 +2,7 @@
 
 namespace motuslogistik\Metrics;
 
+use motuslogistik\Metrics\Queue\QueueJobTracker;
 use OpenTelemetry\API\Globals;
 use OpenTelemetry\API\Metrics\CounterInterface;
 use OpenTelemetry\API\Metrics\GaugeInterface;
@@ -12,6 +13,20 @@ use OpenTelemetry\SDK\Metrics\MeterProviderInterface as SdkMeterProviderInterfac
 
 class Metrics
 {
+    /**
+     * Emit a latency histogram (`queue_job_seconds` by default) for every
+     * processed queue job, labeled by job/queue/connection/status. Call once in
+     * a service provider's boot(); chain ->except()/->only()/->name() to scope it.
+     *
+     * Measures the whole job-processing window (deserialization + middleware +
+     * handle() + bookkeeping), not just handle(). Use observe($job, 'handle')
+     * if you need the method body alone.
+     */
+    public static function trackQueueJobs(): QueueJobTracker
+    {
+        return new QueueJobTracker;
+    }
+
     public static function meter(): MeterInterface
     {
         return self::meterProvider()->getMeter(

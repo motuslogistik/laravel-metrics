@@ -22,6 +22,10 @@ class MetricsServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
+        if (config('metrics.auto_track_jobs', false)) {
+            Metrics::trackQueueJobs()->except(...config('metrics.auto_track_jobs_except', []));
+        }
+
         if (config('metrics.flush_on_queue_job', true)) {
             Queue::after(fn (JobProcessed $event) => Metrics::flush());
             Queue::failing(fn (JobFailed $event) => Metrics::flush());
