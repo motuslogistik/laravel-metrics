@@ -10,6 +10,22 @@ return [
     'meter_name' => 'motuslogistik/metrics',
 
     /*
+     | Prefix prepended to every metric name at instrument creation. Lets a
+     | deployment namespace all its metrics (e.g. "motus_") without touching
+     | call sites. Empty string (the default) means no prefix.
+     |
+     | The prefix is raw-concatenated, so include your own separator:
+     | METRICS_NAME_PREFIX=motus_  ->  motus_orders_created
+     |
+     | WARNING: like histogram buckets, the name is baked into the OTel
+     | instrument identity and cached per process. Changing the prefix renames
+     | every series — treat it as stable across deploys, not a runtime toggle.
+     | Per-histogram bucket overrides below are keyed by the *unprefixed*
+     | (logical) name, so they are unaffected by this setting.
+     */
+    'prefix' => env('METRICS_NAME_PREFIX', ''),
+
+    /*
      | Default histogram bucket boundaries. OTel's own defaults
      | (0, 5, 10, 25, ... 10000) assume milliseconds, which mismatches the
      | Prometheus `_seconds` convention. These boundaries target

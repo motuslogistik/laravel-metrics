@@ -21,22 +21,36 @@ class Metrics
 
     public static function counter(string $name): CounterInterface
     {
-        return self::meter()->createCounter($name);
+        return self::meter()->createCounter(self::prefixed($name));
     }
 
     public static function gauge(string $name): GaugeInterface
     {
-        return self::meter()->createGauge($name);
+        return self::meter()->createGauge(self::prefixed($name));
     }
 
     public static function histogram(string $name): HistogramInterface
     {
+        // Bucket overrides are keyed by the logical (unprefixed) name, so the
+        // lookup happens before the prefix is applied.
         $buckets = config('metrics.histogram_buckets.'.$name)
             ?? config('metrics.default_histogram_buckets');
 
         $advisory = $buckets !== null ? ['ExplicitBucketBoundaries' => $buckets] : [];
 
-        return self::meter()->createHistogram($name, advisory: $advisory);
+        return self::meter()->createHistogram(self::prefixed($name), advisory: $advisory);
+    }
+
+    /**
+     * Prepend the configured name prefix. The prefix is baked into the OTel
+     * instrument identity (and cached per process), so it must stay stable
+     * across deploys — see `config/metrics.php`.
+     */
+    protected static function prefixed(string $name): string
+    {
+        $prefix = (string) config('metrics.prefix', '');
+
+        return $prefix === '' ? $name : $prefix.$name;
     }
 
     /**

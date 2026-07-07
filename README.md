@@ -64,6 +64,15 @@ php artisan vendor:publish --tag="metrics-config"
 return [
     'meter_name' => 'motuslogistik/metrics',
 
+    // Prefix prepended to every metric name at instrument creation. Lets a
+    // deployment namespace all its metrics without touching call sites.
+    // Raw-concatenated, so include your own separator. Set via env:
+    //   METRICS_NAME_PREFIX=motus_   ->   counter('orders_created') exports as motus_orders_created
+    // WARNING: the name is baked into the OTel instrument identity and cached
+    // per process — treat it as stable across deploys, not a runtime toggle.
+    // Bucket overrides below are keyed by the *unprefixed* logical name.
+    'prefix' => env('METRICS_NAME_PREFIX', ''),
+
     // Default explicit bucket boundaries (seconds scale). Ignored if you've
     // switched to exponential histograms via the env var above.
     'default_histogram_buckets' => [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
