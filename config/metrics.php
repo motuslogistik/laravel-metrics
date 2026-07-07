@@ -64,4 +64,39 @@ return [
      | manual flush) or don't want listeners on the queue lifecycle.
      */
     'flush_on_queue_job' => true,
+
+    /*
+     | Force-flush the OTel MeterProvider on Octane lifecycle events. The OTel
+     | PHP SDK's ExportingReader has no periodic export, so under long-lived
+     | Octane (Swoole/RoadRunner) workers HTTP-recorded metrics would buffer in
+     | memory until the worker recycles — and be lost on a crash. This listens
+     | on Octane's request/task/tick termination events (which fire after the
+     | response is sent, so no added latency) plus worker shutdown. Harmless
+     | when Octane isn't installed; the events are simply never dispatched.
+     |
+     | Disable if you run your own periodic flush.
+     */
+    'flush_on_octane' => true,
+
+    /*
+     | Auto-instrument every queue job with a `queue_job_seconds` latency
+     | histogram (labels: job, queue, connection, status) without wiring
+     | `Metrics::trackQueueJobs()` by hand in a service provider. Off by default;
+     | flip to true and you get per-job timing for the whole queue.
+     |
+     | This measures the full job-processing window (deserialization +
+     | middleware + handle() + bookkeeping), not just handle() — see
+     | Metrics::trackQueueJobs() in the README. If you enable this, do NOT also
+     | call Metrics::trackQueueJobs() yourself, or jobs get counted twice.
+     */
+    'auto_track_jobs' => false,
+
+    /*
+     | Job classes to exclude when `auto_track_jobs` is on — e.g. high-frequency
+     | heartbeat jobs whose timing isn't worth a time series. Matched against the
+     | job's resolved class name.
+     */
+    'auto_track_jobs_except' => [
+        // App\Jobs\HeartbeatJob::class,
+    ],
 ];
