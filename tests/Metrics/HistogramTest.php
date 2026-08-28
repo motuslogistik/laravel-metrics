@@ -57,3 +57,14 @@ it('returns a Histogram via metric()->histogram() with labels carried over', fun
 
     expect($this->dataPoint($this->metric('http_latency'), ['path' => '/home'])->sum)->toBe(42);
 });
+
+it('records the duration even when the closure throws', function () {
+    expect(fn () => histogram('http_render')->label('path', '/home')->time(function () {
+        throw new \RuntimeException('boom');
+    }))->toThrow(\RuntimeException::class, 'boom');
+
+    $point = $this->dataPoint($this->metric('http_render'), ['path' => '/home']);
+
+    expect($point->count)->toBe(1)
+        ->and($point->sum)->toBeFloat()->toBeGreaterThanOrEqual(0);
+});
