@@ -24,9 +24,11 @@ class Histogram extends PendingMetric
     public function time(Closure $fn): mixed
     {
         $start = microtime(true);
-        $result = $fn();
-        $this->record(microtime(true) - $start);
 
-        return $result;
+        try {
+            return $fn();
+        } finally {
+            $this->record(microtime(true) - $start);
+        }
     }
 }
