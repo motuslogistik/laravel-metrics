@@ -60,10 +60,33 @@ it('returns a Histogram via metric()->histogram() with labels carried over', fun
 
 it('records the duration even when the closure throws', function () {
     expect(fn () => histogram('http_render')->label('path', '/home')->time(function () {
-        throw new \RuntimeException('boom');
-    }))->toThrow(\RuntimeException::class, 'boom');
+        throw new RuntimeException('boom');
+    }))->toThrow(RuntimeException::class, 'boom');
 
     $point = $this->dataPoint($this->metric('http_render'), ['path' => '/home']);
+
+    expect($point->count)->toBe(1)
+        ->and($point->sum)->toBeFloat()->toBeGreaterThanOrEqual(0);
+});
+
+it('appends the success labels when the closure returns', function () {
+    histogram('http_render')
+        ->label('path', '/home')
+        ->time(fn () => null, ['status' => 'ok'], ['status' => 'error']);
+
+    $point = $this->dataPoint($this->metric('http_render'), ['path' => '/home', 'status' => 'ok']);
+
+    expect($point->count)->toBe(1);
+});
+
+it('appends the failure labels when the closure throws', function () {
+    expect(fn () => histogram('http_render')->label('path', '/home')->time(
+        fn () => throw new RuntimeException('boom'),
+        ['status' => 'ok'],
+        ['status' => 'error'],
+    ))->toThrow(RuntimeException::class, 'boom');
+
+    $point = $this->dataPoint($this->metric('http_render'), ['path' => '/home', 'status' => 'error']);
 
     expect($point->count)->toBe(1)
         ->and($point->sum)->toBeFloat()->toBeGreaterThanOrEqual(0);

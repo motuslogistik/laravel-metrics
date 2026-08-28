@@ -66,11 +66,18 @@ class PendingMetric
     }
 
     /**
+     * @param  array<string, string|BackedEnum>  $extra
      * @return array<string, string>
      */
-    protected function attributes(): array
+    protected function attributes(array $extra = []): array
     {
-        return $this->labels;
+        $attributes = $this->labels;
+
+        foreach ($extra as $name => $value) {
+            $attributes[$this->normalize($name)] = $this->normalize($value);
+        }
+
+        return $attributes;
     }
 
     protected function normalize(string|BackedEnum $value): string
