@@ -1,20 +1,13 @@
 {
     "name": "motuslogistik/metrics",
-    "description": "Metrics for Motus",
+    "description": "Laravel package for prometheus style metrics",
     "keywords": [
         "motuslogistik",
         "laravel",
         "metrics"
     ],
     "homepage": "https://github.com/motuslogistik/metrics",
-    "license": "proprietary",
-    "authors": [
-        {
-            "name": "Patrik Malmström",
-            "email": "pama@wappo.se",
-            "role": "Developer"
-        }
-    ],
+    "license": "mit",
     "require": {
         "php": "^8.4",
         "illuminate/contracts": "^11.0||^12.0||^13.0",
