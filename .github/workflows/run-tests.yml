@@ -9,7 +9,7 @@ concurrency:
 jobs:
   test:
     name: tests
-    runs-on: motus-managed-small
+    runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
