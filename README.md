@@ -370,6 +370,4 @@ Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed re
 - [Patrik Malmström](https://github.com/popsork)
 - [All Contributors](../../contributors)
 
-## License
 
-Proprietary. Copyright © 2026 Motus Logistik. See [LICENSE.md](LICENSE.md).
