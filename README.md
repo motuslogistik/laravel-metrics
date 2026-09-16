@@ -157,6 +157,24 @@ histogram('http_render')
 
 `time()` runs the closure, records the duration (seconds, float), and returns the closure's result. It lives on `histogram()` only — histograms are the right instrument for distribution-shaped data like latencies (you get count, sum, buckets, percentiles).
 
+### `span()` — trace a closure
+
+Metrics tell you *how long* and *how often*; a span tells you *where inside a single request* the time went. `span()` opens an OTel span around a closure, returning the closure's result:
+
+```php
+span('jsonapi.build_response')->time(fn () => $this->buildResponse($results, $request));
+
+span('jsonapi.handle_operation:add:orders')
+    ->attribute('jsonapi.resource_type', 'orders')
+    ->time(fn () => $this->handleOperation($operation));
+```
+
+The span is activated for the duration of the closure, so auto-instrumented work underneath it (SQL queries, outgoing HTTP) nests as child spans. If the closure throws, the exception is recorded on the span, its status is set to `Error`, and the exception is re-thrown unchanged — the span is always ended either way.
+
+Unlike metric names, span names are **not** run through `metrics.prefix`: that prefix is a Prometheus naming convention and means nothing to a trace backend. The instrumentation scope comes from `metrics.tracer_name`.
+
+Attributes accept backed enums for name and value, same as labels do. With no OTel SDK registered, `Globals::tracerProvider()` hands back a no-op tracer and the whole thing costs nothing, so call sites never need to check whether tracing is on.
+
 ### `observe()` — auto-instrument a method
 
 For a class method you'd otherwise wrap by hand in every call site, the `observe()` helper hooks it once and emits a latency histogram for every invocation. Requires the [`opentelemetry` PHP extension](https://opentelemetry.io/docs/zero-code/php/setup/#install-the-extension); without it, calls log a warning and no-op.
@@ -359,7 +377,7 @@ If you need any of these, pin to a pre-1.x version of this package.
 composer test
 ```
 
-Tests use OTel's `InMemoryExporter` + `ExportingReader` — no Collector or network required. See `tests/TestCase.php` for the wiring.
+Tests use OTel's `InMemoryExporter` + `ExportingReader` for metrics and an in-memory span exporter behind a `SimpleSpanProcessor` for traces — no Collector or network required. See `tests/TestCase.php` for the wiring.
 
 ## Changelog
 

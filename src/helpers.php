@@ -5,6 +5,7 @@ use motuslogistik\Metrics\Metrics\Counter;
 use motuslogistik\Metrics\Metrics\Gauge;
 use motuslogistik\Metrics\Metrics\Histogram;
 use motuslogistik\Metrics\PendingMetric;
+use motuslogistik\Metrics\Tracing\Span;
 
 if (! function_exists('motuslogistik_metrics_apply_labels')) {
     /**
@@ -62,5 +63,17 @@ if (! function_exists('observe')) {
     function observe(string $class, string $method, ?string $name = null): Observer
     {
         return new Observer($class, $method, $name);
+    }
+}
+
+if (! function_exists('span')) {
+    /**
+     * Trace a closure as an OTel span. Unlike the metric helpers, the span name
+     * is used verbatim — `metrics.prefix` is a Prometheus convention and has no
+     * meaning for traces.
+     */
+    function span(string|BackedEnum $name): Span
+    {
+        return new Span($name);
     }
 }
