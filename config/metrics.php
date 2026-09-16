@@ -10,6 +10,14 @@ return [
     'meter_name' => 'motuslogistik/metrics',
 
     /*
+     | Instrumentation scope name passed to the OTel TracerProvider for spans
+     | opened via the span() helper. Surfaces on exported spans as
+     | `otel.scope.name`. Separate from `meter_name` so traces and metrics can
+     | be attributed independently, but the same default is the sane choice.
+     */
+    'tracer_name' => 'motuslogistik/metrics',
+
+    /*
      | Prefix prepended to every metric name at instrument creation. Lets a
      | deployment namespace all its metrics (e.g. "motus_") without touching
      | call sites. Empty string (the default) means no prefix.

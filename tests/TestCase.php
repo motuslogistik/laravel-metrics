@@ -5,10 +5,15 @@ namespace motuslogistik\Metrics\Tests;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use motuslogistik\Metrics\MetricsServiceProvider;
 use OpenTelemetry\API\Metrics\MeterProviderInterface;
+use OpenTelemetry\API\Trace\TracerProviderInterface;
 use OpenTelemetry\SDK\Metrics\Data\Metric;
 use OpenTelemetry\SDK\Metrics\MeterProvider;
 use OpenTelemetry\SDK\Metrics\MetricExporter\InMemoryExporter;
 use OpenTelemetry\SDK\Metrics\MetricReader\ExportingReader;
+use OpenTelemetry\SDK\Trace\ImmutableSpan;
+use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter as InMemorySpanExporter;
+use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
+use OpenTelemetry\SDK\Trace\TracerProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 
 class TestCase extends Orchestra
@@ -16,6 +21,8 @@ class TestCase extends Orchestra
     protected InMemoryExporter $exporter;
 
     protected ExportingReader $reader;
+
+    protected InMemorySpanExporter $spanExporter;
 
     protected function setUp(): void
     {
@@ -32,6 +39,13 @@ class TestCase extends Orchestra
             ->build();
 
         $this->app->instance(MeterProviderInterface::class, $meterProvider);
+
+        $this->spanExporter = new InMemorySpanExporter;
+        $tracerProvider = TracerProvider::builder()
+            ->addSpanProcessor(new SimpleSpanProcessor($this->spanExporter))
+            ->build();
+
+        $this->app->instance(TracerProviderInterface::class, $tracerProvider);
     }
 
     /**
@@ -54,6 +68,31 @@ class TestCase extends Orchestra
         foreach ($this->collectMetrics() as $metric) {
             if ($metric->name === $name) {
                 return $metric;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * All spans exported so far. SimpleSpanProcessor exports on end(), so no
+     * flush is needed — unlike metrics, which have to be collected first.
+     *
+     * @return array<int, ImmutableSpan>
+     */
+    protected function collectSpans(): array
+    {
+        return $this->spanExporter->getSpans();
+    }
+
+    /**
+     * Find the first exported span with the given name.
+     */
+    protected function span(string $name): ?ImmutableSpan
+    {
+        foreach ($this->collectSpans() as $span) {
+            if ($span->getName() === $name) {
+                return $span;
             }
         }
 
